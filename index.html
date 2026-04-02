@@ -669,40 +669,119 @@
       localStorage.setItem('adr_cases_list', JSON.stringify(arr));
     }
 
-    function generatePDF(){
-      const data = getFormData();
-      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
-      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-      let y = 12;
-      const line = (t) => { doc.text(String(t).slice(0, 95), 12, y); y += 6.8; };
-      doc.setFontSize(15); doc.text('Suspected Adverse Drug Reaction Reporting Form', 12, y); y += 8;
-      doc.setFontSize(10);
-      line(`Reporter: ${data.reporter.name || '-'}`);
-      line(`Report date: ${data.reporter.reportDate || '-'}`);
-      line(`Patient initials: ${data.patient.initials || '-'}`);
-      line(`Age: ${data.patient.age || '-'}   Gender: ${data.patient.gender || '-'}`);
-      line(`Reaction: ${data.event.reaction || '-'}`);
-      line(`Start date: ${data.event.startDate || '-'}   Stop date: ${data.event.stopDate || '-'}`);
-      line(`WHO-UMC: ${who}`);
-      line(`Naranjo: ${mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category}`);
-      y += 3;
-      doc.setFontSize(11); doc.text('Suspected medicines', 12, y); y += 6;
-      doc.setFontSize(9);
-      if(data.suspected.length === 0){ line('-'); }
-      data.suspected.forEach((d, i) => {
-        line(`${i + 1}. ${d.name || '-'} | Dose: ${d.dose || '-'} | ${d.frequency || '-'} | ${d.route || '-'} | ${d.start || '-'} to ${d.stop || '-'}`);
-      });
-      y += 3;
-      doc.setFontSize(11); doc.text('Concomitant medicines', 12, y); y += 6;
-      doc.setFontSize(9);
-      if(data.concomitant.length === 0){ line('-'); }
-      data.concomitant.forEach((d, i) => {
-        line(`${i + 1}. ${d.name || '-'} | Dose: ${d.dose || '-'} | ${d.frequency || '-'} | ${d.route || '-'}`);
-      });
-      doc.save('ADR_Report.pdf');
-    }
+   function generatePDF(){
+  const { jsPDF } = window.jspdf;
+  let doc = new jsPDF();
+
+  let y = 10;
+
+  function line(text, space=7){
+    doc.text(text, 10, y);
+    y += space;
+  }
+
+  // Title
+  doc.setFontSize(14);
+  line("Suspected Adverse Drug Reaction Reporting Form");
+  doc.setFontSize(10);
+  line("CDSCO Style Generated Report");
+  y += 3;
+
+  // SECTION A
+  doc.setFont(undefined,"bold");
+  line("A. Patient Information");
+  doc.setFont(undefined,"normal");
+
+  line("Patient Initials: " + initials.value);
+  line("Age: " + age.value + "    Gender: " + gender.value);
+  line("Weight: " + weight.value);
+  line("Reg No: " + regNo.value);
+
+  y += 3;
+
+  // SECTION B
+  doc.setFont(undefined,"bold");
+  line("B. Adverse Reaction");
+  doc.setFont(undefined,"normal");
+
+  line("Reaction: " + reaction.value);
+  line("Start Date: " + startDate.value);
+  line("Stop Date: " + stopDate.value);
+  line("Outcome: " + outcome.value);
+
+  y += 3;
+
+  // SECTION C
+  doc.setFont(undefined,"bold");
+  line("C. Suspected Drugs");
+  doc.setFont(undefined,"normal");
+
+  let rows = document.querySelectorAll('.drug-row[data-list="suspected"]');
+
+  rows.forEach((row, i)=>{
+    let inputs = row.querySelectorAll("input, select");
+
+    line(
+      (i+1)+". " +
+      (inputs[0].value || "-") +
+      " | Dose: " + (inputs[1].value || "-") +
+      " | " + (inputs[2].value || "-") +
+      " | " + (inputs[3].value || "-")
+    );
+
+    line(
+      "   From: " + (inputs[4].value || "-") +
+      " To: " + (inputs[5].value || "-") +
+      " | Action: " + (inputs[7].value || "-")
+    );
+  });
+
+  y += 3;
+
+  // SECTION D
+  doc.setFont(undefined,"bold");
+  line("D. Concomitant Drugs");
+  doc.setFont(undefined,"normal");
+
+  let rows2 = document.querySelectorAll('.drug-row[data-list="concomitant"]');
+
+  rows2.forEach((row, i)=>{
+    let inputs = row.querySelectorAll("input, select");
+
+    line(
+      (i+1)+". " +
+      (inputs[0].value || "-") +
+      " | Dose: " + (inputs[1].value || "-") +
+      " | " + (inputs[2].value || "-")
+    );
+  });
+
+  y += 3;
+
+  // SECTION E
+  doc.setFont(undefined,"bold");
+  line("E. History & Investigations");
+  doc.setFont(undefined,"normal");
+
+  line("History: " + history.value);
+  line("Investigations: " + investigations.value);
+
+  y += 3;
+
+  // SECTION F
+  doc.setFont(undefined,"bold");
+  line("F. Causality Assessment");
+  doc.setFont(undefined,"normal");
+
+  let who = whoAssessment();
+  let nar = naranjoScore();
+
+  line("WHO-UMC: " + who);
+  line("Naranjo: " + nar.category + " (" + nar.score + ")");
+
+  // SAVE
+  doc.save("CDSCO_ADR_Report.pdf");
+}
 
     function saveAll(){
       localStorage.setItem('adr_webapp_clean_v1', JSON.stringify(getFormData()));
