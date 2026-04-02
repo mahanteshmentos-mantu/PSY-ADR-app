@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CDSCO ADR Smart Builder</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     :root{
       --bg:#eef5ff;
@@ -13,7 +12,6 @@
       --muted:#667085;
       --line:#d8e0ea;
       --blue:#2563eb;
-      --blue2:#1d4ed8;
       --green:#059669;
       --amber:#d97706;
       --rose:#e11d48;
@@ -32,7 +30,7 @@
         linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
       min-height:100vh;
     }
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
+    .wrap{max-width:1280px;margin:0 auto;padding:20px}
     .hero{
       background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #7c3aed 100%);
       color:#fff;
@@ -48,7 +46,7 @@
       border:1px solid rgba(255,255,255,.14);font-size:12px;font-weight:700
     }
     h1{margin:10px 0 8px;font-size:30px;line-height:1.1}
-    .sub{max-width:860px;color:rgba(255,255,255,.8);font-size:14px;line-height:1.6;margin:0}
+    .sub{max-width:920px;color:rgba(255,255,255,.8);font-size:14px;line-height:1.6;margin:0}
     .actions{display:flex;flex-wrap:wrap;gap:10px}
     button,.btn{
       border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;
@@ -109,7 +107,6 @@
     .chip.rose{background:#ffe4e6;color:#be123c}
     .drug-row{background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:14px;margin-bottom:12px}
     .drug-row .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
-    .drug-row .grid{grid-template-columns:repeat(3,1fr)}
     .small{font-size:12px;color:var(--muted)}
     .preview-box{border-radius:18px;padding:14px;border:1px solid #e2e8f0;background:#fff}
     .preview-item{border-radius:16px;padding:14px;background:linear-gradient(180deg,#f8fafc,#fff);border:1px solid #e2e8f0;margin-bottom:10px}
@@ -124,17 +121,56 @@
     .toggle{display:inline-flex;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:700;font-size:13px}
     .divider{height:1px;background:#e2e8f0;margin:14px 0}
     .print-only{display:none}
+
+    /* Print CDSCO-like form */
+    .print-sheet{
+      display:none;
+      width:210mm;
+      min-height:297mm;
+      margin:0 auto;
+      background:#fff;
+      color:#000;
+      padding:10mm;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size:10px;
+      line-height:1.25;
+    }
+    .form-title{font-size:16px;font-weight:700;text-align:center;margin:0;}
+    .form-subtitle{font-size:10px;text-align:center;margin:2px 0 4px;}
+    .ipc-head{font-size:12px;font-weight:700;text-align:center;margin:0 0 4px;}
+    .topline{display:flex;justify-content:space-between;align-items:center;font-size:9px;margin-bottom:3px}
+    .box-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0}
+    .box{border:1px solid #000;min-height:22px;padding:3px 4px;}
+    .checkbox{display:inline-block;width:9px;height:9px;border:1px solid #000;vertical-align:middle;margin:0 3px 0 4px}
+    .section-bar{background:#b70000;color:#fff;font-weight:700;border:1px solid #000;padding:3px 6px;margin-top:5px}
+    .two-col{display:grid;grid-template-columns:1.1fr .9fr;gap:0}
+    .right-stack{display:grid;grid-template-rows:auto auto auto;gap:0}
+    .mini-box{border:1px solid #000;min-height:24px;padding:3px 5px}
+    .label-line{display:flex;gap:4px;align-items:flex-start;margin:2px 0}
+    .label-line .lbl{min-width:115px;font-weight:700}
+    .twrap{width:100%;border-collapse:collapse;table-layout:fixed}
+    .twrap th,.twrap td{border:1px solid #000;padding:3px 4px;vertical-align:top;word-wrap:break-word}
+    .twrap th{font-weight:700;background:#f1f1f1}
+    .small-table{font-size:9px}
+    .foot-red{background:#b70000;color:#fff;padding:4px 6px;border:1px solid #000;font-size:9px;margin-top:4px}
+    .page-break{page-break-before:always}
+    .muted{color:#555}
+    .print-drug-grid{width:100%;border-collapse:collapse;table-layout:fixed}
+    .print-drug-grid th,.print-drug-grid td{border:1px solid #000;padding:2px 3px;font-size:8px;vertical-align:top}
+    .print-drug-grid th{background:#f3f3f3}
+    .row-gap{height:4px}
+
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
       .meta-grid{grid-template-columns:repeat(2,1fr)}
       .form-grid,.form-grid.three,.summary{grid-template-columns:1fr}
     }
+
     @media print{
       body{background:#fff}
       .no-print{display:none !important}
-      .print-only{display:block !important}
-      .print-page{padding:0}
-      .card{box-shadow:none}
+      .print-sheet{display:block !important}
+      @page{size:A4;margin:0}
     }
   </style>
 </head>
@@ -145,12 +181,12 @@
         <div>
           <div class="badge">CDSCO ADR Smart Builder</div>
           <h1>Clean, color-coded ADR assistant</h1>
-          <p class="sub">A practical, single-file web app for psychotropic ADR collection: quick entry, auto-suggest, WHO-UMC / Naranjo summary, local save, and print-ready report generation.</p>
+          <p class="sub">A practical single-file web app for psychotropic ADR collection: quick entry, auto-suggest, WHO-UMC / Naranjo summary, local save, and a boxed CDSCO-style print report.</p>
         </div>
         <div class="actions">
           <button class="btn-soft" onclick="saveNow()">Save locally</button>
           <button class="btn-blue" onclick="copySummary()">Copy summary</button>
-          <button class="btn-green" onclick="window.print()">Print / PDF</button>
+          <button class="btn-green" onclick="generatePDF()">Download PDF</button>
           <button class="btn-rose" onclick="resetAll()">New case</button>
         </div>
       </div>
@@ -218,7 +254,7 @@
 
         <div class="card">
           <div class="card-h h-blue">
-            <div>Patient information<small>Core identity + registration details.</small></div>
+            <div>Patient information<small>Basic identity and registration details.</small></div>
           </div>
           <div class="card-b">
             <div class="form-grid three">
@@ -362,19 +398,103 @@
     <div class="footer-tip">Tip: fill one complete case first. The app saves locally in your browser, so you can open it again and continue.</div>
   </div>
 
-  <div class="print-only print-page">
-    <h2>Suspected Adverse Drug Reaction Reporting Form</h2>
-    <p>CDSCO-style generated report</p>
-    <hr />
-    <p><b>Reporter:</b> <span id="pReporter"></span></p>
-    <p><b>Report date:</b> <span id="pReportDate"></span></p>
-    <p><b>Patient initials:</b> <span id="pInitials"></span></p>
-    <p><b>Age:</b> <span id="pAge"></span> <b>Gender:</b> <span id="pGender"></span></p>
-    <p><b>Reaction:</b> <span id="pReaction"></span></p>
-    <p><b>WHO-UMC:</b> <span id="pWHO"></span></p>
-    <p><b>Naranjo:</b> <span id="pNaranjo"></span></p>
-    <p><b>Drugs:</b></p>
-    <div id="pDrugs"></div>
+  <!-- PRINT SHEET -->
+  <div class="print-sheet" id="printSheet">
+    <div class="topline"><div id="printClock"> </div><div>Version 1.4</div></div>
+    <h1 class="form-title">SUSPECTED ADVERSE DRUG REACTION REPORTING FORM</h1>
+    <div class="ipc-head">For VOLUNTARY reporting of ADRs by Healthcare Professionals</div>
+    <div class="form-subtitle">INDIAN PHARMACOPOEIA COMMISSION (National Coordination Centre-Pharmacovigilance Programme of India)</div>
+    <div class="form-subtitle">Ministry of Health & Family Welfare, Government of India, Sector-23, Raj Nagar, Ghaziabad-201002</div>
+    <div class="form-subtitle"><b>PvPI Helpline (Toll Free):</b> 1800-180-3024 (9:00 AM to 5:30 PM, Monday-Friday)</div>
+
+    <div class="topline" style="margin-top:4px"><div>Initial Case <span class="checkbox"></span></div><div>Follow-up Case <span class="checkbox"></span></div><div>FOR AMC / NCC USE ONLY</div></div>
+
+    <div class="two-col">
+      <div>
+        <div class="section-bar">A. PATIENT INFORMATION *</div>
+        <table class="twrap small-table">
+          <tr>
+            <td style="width:50%"><b>1. Patient Initials:</b> <span id="pInitials">-</span></td>
+            <td style="width:50%"><b>2. Age or date of birth:</b> <span id="pAgeDob">-</span></td>
+          </tr>
+          <tr>
+            <td><b>3. Gender:</b> <span id="pGender">-</span></td>
+            <td><b>4. Weight (in Kg.):</b> <span id="pWeight">-</span></td>
+          </tr>
+        </table>
+
+        <div class="section-bar">B. SUSPECTED ADVERSE REACTION *</div>
+        <table class="twrap small-table">
+          <tr><td><b>5. Event / Reaction start date:</b> <span id="pStart">-</span></td></tr>
+          <tr><td><b>6. Event / Reaction stop date:</b> <span id="pStop">-</span></td></tr>
+          <tr><td><b>7. Describe Event/Reaction management with details, if any:</b><br><span id="pManagement">-</span></td></tr>
+        </table>
+      </div>
+      <div>
+        <table class="twrap small-table" style="margin-top:0">
+          <tr><td><b>Reg. No. / IPD No. / OPD No. / CR No.:</b> <span id="pRegNo">-</span></td></tr>
+          <tr><td><b>AMC Report No.:</b> ____________</td></tr>
+          <tr><td><b>Worldwide Unique No.:</b> ____________</td></tr>
+          <tr><td><b>12. Relevant investigations with dates:</b><br><span id="pInvestigations">-</span></td></tr>
+          <tr><td><b>13. Relevant medical / medication history:</b><br><span id="pHistory">-</span></td></tr>
+          <tr><td><b>14. Seriousness of the reaction:</b><br>No <span class="checkbox"></span> If Yes <span class="checkbox"></span> <span class="muted">(Death / Life threatening / Hospitalization / Disability / Congenital anomaly / Other medically important)</span></td></tr>
+          <tr><td><b>15. Outcome:</b> <span id="pOutcome">-</span></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="section-bar">C. SUSPECTED MEDICATION(S) *</div>
+    <table class="print-drug-grid">
+      <colgroup>
+        <col style="width:3%"><col style="width:19%"><col style="width:8%"><col style="width:8%"><col style="width:6%"><col style="width:6%"><col style="width:7%"><col style="width:7%"><col style="width:12%"><col style="width:12%"><col style="width:12%">
+      </colgroup>
+      <tr>
+        <th>S. No.</th><th>Name (Brand/Generic)</th><th>Dose</th><th>Route</th><th>Freq.</th><th>Therapy Start</th><th>Therapy Stop</th><th>Indication</th><th>Causality</th><th>Action Taken</th><th>Reintro</th>
+      </tr>
+      <tbody id="pSuspectedRows"></tbody>
+    </table>
+
+    <table class="twrap small-table" style="margin-top:4px">
+      <tr><td style="width:50%"><b>9. Action taken after reaction (please tick)</b><br>
+        Drug withdrawn <span class="checkbox"></span> Dose increased <span class="checkbox"></span> Dose reduced <span class="checkbox"></span> Dose not changed <span class="checkbox"></span> Not applicable <span class="checkbox"></span> Unknown <span class="checkbox"></span>
+      </td>
+      <td style="width:50%"><b>10. Reaction reappeared after reintroduction of suspected medication (please tick)</b><br>
+        Yes <span class="checkbox"></span> No <span class="checkbox"></span> Effect unknown <span class="checkbox"></span> Dose (if re-introduced): __________
+      </td></tr>
+    </table>
+
+    <div class="section-bar">11. Concomitant medical product including self-medication and herbal remedies with therapy dates (Exclude those used to treat reaction)</div>
+    <table class="print-drug-grid">
+      <colgroup>
+        <col style="width:4%"><col style="width:26%"><col style="width:8%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:12%"><col style="width:20%">
+      </colgroup>
+      <tr><th>S. No.</th><th>Name (Brand / Generic)</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Date Started</th><th>Date Stopped</th><th>Indication</th></tr>
+      <tbody id="pConcomitantRows"></tbody>
+    </table>
+
+    <table class="twrap small-table" style="margin-top:4px">
+      <tr><td style="width:60%"><b>Additional Information:</b></td><td style="width:40%"><b>D. REPORTER DETAILS *</b></td></tr>
+      <tr>
+        <td rowspan="4" style="vertical-align:top; min-height:60px"> </td>
+        <td><b>16. Name & Address:</b><br><span id="pReporter"></span></td>
+      </tr>
+      <tr><td><b>Pin:</b> <span id="pPin">-</span> &nbsp;&nbsp; <b>Email:</b> <span id="pEmail">-</span></td></tr>
+      <tr><td><b>Contact No.:</b> <span id="pContact">-</span> &nbsp;&nbsp; <b>Occupation:</b> <span id="pOccupation">-</span></td></tr>
+      <tr><td><b>17. Date of this report:</b> <span id="pReportDate">-</span> &nbsp;&nbsp; <b>Signature:</b> __________________</td></tr>
+    </table>
+
+    <div class="foot-red">Confidentiality: The patient’s identity is held in strict confidence and protected to the fullest extent. Submission of a report does not constitute an admission that medical personnel or manufacturer or the product caused or contributed to the reaction.</div>
+    <div class="small-table" style="margin-top:3px">* Mandatory fields for suspected ADR Reporting Form &nbsp;&nbsp; # Use separate page for more information</div>
+
+    <div class="page-break"></div>
+    <div class="section-bar">WHO-UMC / Naranjo Assessment Summary</div>
+    <table class="twrap small-table">
+      <tr>
+        <td style="width:50%"><b>WHO-UMC:</b> <span id="pWho">-</span></td>
+        <td style="width:50%"><b>Naranjo:</b> <span id="pNar">-</span></td>
+      </tr>
+      <tr><td colspan="2"><b>Key causal reasoning:</b><br><span id="pReasoning">-</span></td></tr>
+    </table>
   </div>
 
   <script>
@@ -391,7 +511,6 @@
     let reporterLocked = false;
     let mode = 'auto';
     let drugCounts = { suspected: 0, concomitant: 0 };
-    let drugs = { suspected: [], concomitant: [] };
 
     const ids = [
       'reporterName','reportDate','occupation','pin','contact','email',
@@ -480,14 +599,12 @@
         </div>
       `;
       container.appendChild(box);
-      drugs[listName].push(box);
       updateCompletion();
       updatePreview();
     }
 
     function removeDrug(btn){
-      const row = btn.closest('.drug-row');
-      row.remove();
+      btn.closest('.drug-row').remove();
       updateCompletion();
       updatePreview();
     }
@@ -520,10 +637,8 @@
       if(el('timing').checked) score += 2;
       if(el('dechallenge').checked) score += 1;
       if(el('rechallenge').checked) score += 2;
-      const hasReaction = !!el('reaction').value.trim();
-      if(hasReaction) score += 1;
-      const altCause = el('history').value.toLowerCase().includes('alternative');
-      if(!altCause) score += 1;
+      if(el('reaction').value.trim()) score += 1;
+      if(!el('history').value.toLowerCase().includes('alternative')) score += 1;
 
       let category = 'Doubtful';
       if(score >= 9) category = 'Definite';
@@ -669,129 +784,76 @@
       localStorage.setItem('adr_cases_list', JSON.stringify(arr));
     }
 
-   function generatePDF(){
-  const { jsPDF } = window.jspdf;
-  let doc = new jsPDF();
+    function renderPrintSheet(){
+      const data = getFormData();
+      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
+      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
+      const narText = mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category;
 
-  let y = 10;
+      el('pInitials').textContent = data.patient.initials || '-';
+      el('pAgeDob').textContent = data.patient.age || data.patient.dob || '-';
+      el('pGender').textContent = data.patient.gender || '-';
+      el('pWeight').textContent = data.patient.weight || '-';
+      el('pRegNo').textContent = data.patient.regNo || '-';
+      el('pStart').textContent = data.event.startDate || '-';
+      el('pStop').textContent = data.event.stopDate || '-';
+      el('pManagement').textContent = data.event.management || '-';
+      el('pInvestigations').textContent = data.investigations || '-';
+      el('pHistory').textContent = data.history || '-';
+      el('pOutcome').textContent = data.event.outcome || '-';
+      el('pReporter').textContent = data.reporter.name || '-';
+      el('pPin').textContent = data.reporter.pin || '-';
+      el('pEmail').textContent = data.reporter.email || '-';
+      el('pContact').textContent = data.reporter.contact || '-';
+      el('pOccupation').textContent = data.reporter.occupation || '-';
+      el('pReportDate').textContent = data.reporter.reportDate || '-';
+      el('pWho').textContent = who;
+      el('pNar').textContent = narText;
+      el('pReasoning').textContent = `Temporal relation: ${data.timing ? 'yes' : 'no'}; dechallenge: ${data.dechallenge ? 'yes' : 'no'}; rechallenge: ${data.rechallenge ? 'yes' : 'no'}; alternative cause mentioned: ${data.history.toLowerCase().includes('alternative') ? 'yes' : 'no'}.`;
 
-  function box(title){
-    doc.setFont(undefined,"bold");
-    doc.rect(10, y, 190, 8);
-    doc.text(title, 12, y+5);
-    y += 10;
-    doc.setFont(undefined,"normal");
-  }
+      const susp = el('pSuspectedRows');
+      susp.innerHTML = '';
+      const suspected = data.suspected.length ? data.suspected : [{name:'',dose:'',frequency:'',route:'',start:'',stop:'',indication:'',action:'',reintro:''}];
+      suspected.slice(0,4).forEach((d, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${d.name || '-'}</td>
+          <td>${d.dose || '-'}</td>
+          <td>${d.route || '-'}</td>
+          <td>${d.frequency || '-'}</td>
+          <td>${d.start || '-'}</td>
+          <td>${d.stop || '-'}</td>
+          <td>${d.indication || '-'}</td>
+          <td>${who}</td>
+          <td>${d.action || '-'}</td>
+          <td>${d.reintro || '-'}</td>
+        `;
+        susp.appendChild(tr);
+      });
 
-  function field(label, value){
-    doc.text(label + ": " + (value || "-"), 12, y);
-    y += 7;
-  }
+      const conc = el('pConcomitantRows');
+      conc.innerHTML = '';
+      const concomitant = data.concomitant.length ? data.concomitant : [{name:'',dose:'',frequency:'',route:'',start:'',stop:'',indication:''}];
+      concomitant.slice(0,4).forEach((d, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${i+1}</td>
+          <td>${d.name || '-'}</td>
+          <td>${d.dose || '-'}</td>
+          <td>${d.route || '-'}</td>
+          <td>${d.frequency || '-'}</td>
+          <td>${d.start || '-'}</td>
+          <td>${d.stop || '-'}</td>
+          <td>${d.indication || '-'}</td>
+        `;
+        conc.appendChild(tr);
+      });
+    }
 
-  // TITLE
-  doc.setFontSize(14);
-  doc.text("SUSPECTED ADVERSE DRUG REACTION REPORTING FORM", 10, y);
-  y += 8;
-  doc.setFontSize(10);
-
-  // A
-  box("A. PATIENT INFORMATION");
-
-  field("Initials", initials.value);
-  field("Age", age.value);
-  field("Gender", gender.value);
-  field("Weight", weight.value);
-  field("Reg No", regNo.value);
-
-  y += 3;
-
-  // B
-  box("B. ADVERSE REACTION");
-
-  field("Reaction", reaction.value);
-  field("Start Date", startDate.value);
-  field("Stop Date", stopDate.value);
-  field("Outcome", outcome.value);
-
-  y += 3;
-
-  // C TABLE
-  box("C. SUSPECTED DRUGS");
-
-  doc.setFontSize(9);
-
-  let headers = ["Drug", "Dose", "Freq", "Route", "Start", "Stop"];
-
-  let rows = [];
-  document.querySelectorAll('.drug-row[data-list=\"suspected\"]').forEach(row=>{
-    let i = row.querySelectorAll("input, select");
-    rows.push([
-      i[0].value || "-",
-      i[1].value || "-",
-      i[2].value || "-",
-      i[3].value || "-",
-      i[4].value || "-",
-      i[5].value || "-"
-    ]);
-  });
-
-  // Draw table
-  let x = 10;
-  let colWidth = 30;
-
-  headers.forEach((h, i)=>{
-    doc.rect(x + i*colWidth, y, colWidth, 8);
-    doc.text(h, x + 2 + i*colWidth, y+5);
-  });
-
-  y += 8;
-
-  rows.forEach(r=>{
-    r.forEach((cell,i)=>{
-      doc.rect(x + i*colWidth, y, colWidth, 8);
-      doc.text(String(cell).substring(0,12), x+2+i*colWidth, y+5);
-    });
-    y += 8;
-  });
-
-  y += 3;
-
-  // D
-  box("D. CONCOMITANT DRUGS");
-
-  document.querySelectorAll('.drug-row[data-list=\"concomitant\"]').forEach((row,i)=>{
-    let d = row.querySelectorAll("input, select");
-    field(
-      (i+1)+". Drug",
-      d[0].value + " | " + d[1].value + " | " + d[2].value
-    );
-  });
-
-  y += 3;
-
-  // E
-  box("E. HISTORY & INVESTIGATIONS");
-
-  field("History", history.value);
-  field("Investigations", investigations.value);
-
-  y += 3;
-
-  // F
-  box("F. CAUSALITY ASSESSMENT");
-
-  let who = whoAssessment();
-  let nar = naranjoScore();
-
-  field("WHO-UMC", who);
-  field("Naranjo", nar.category + " (" + nar.score + ")");
-
-  doc.save("CDSCO_ADR_Form.pdf");
-}
-    function saveAll(){
-      localStorage.setItem('adr_webapp_clean_v1', JSON.stringify(getFormData()));
-      saveCaseList(getFormData());
-      setStatus('Saved locally.');
+    function generatePDF(){
+      renderPrintSheet();
+      window.print();
     }
 
     function loadSaved(){
@@ -828,7 +890,6 @@
         setMode(mode);
         if(d.suspected?.length){ d.suspected.forEach(() => addDrug('suspected')); }
         if(d.concomitant?.length){ d.concomitant.forEach(() => addDrug('concomitant')); }
-        // refill drug fields
         [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row, i) => {
           const d0 = d.suspected[i];
           if(!d0) return;
@@ -854,56 +915,30 @@
           ins[4].value = d0.start || '';
           ins[5].value = d0.stop || '';
           ins[6].value = d0.indication || '';
-          ins[7].value = d0.action || 'Dose not changed';
-          ins[8].value = d0.reintro || 'Unknown';
         });
-      }catch(e){/* ignore */}
+      }catch(e){}
       updatePreview();
     }
 
-    function resetAll(){
-      if(!confirm('Clear this form and start a new case?')) return;
-      localStorage.removeItem('adr_webapp_clean_v1');
-      location.reload();
-    }
-
-    // Events
+    // events
     ['reporterName','reportDate','occupation','pin','contact','email','initials','age','dob','gender','weight','regNo','reaction','management','startDate','stopDate','outcome','history','investigations','manualWHO','manualNaranjo'].forEach(id => {
-      el(id).addEventListener('input', () => { syncAssessment(); });
-      el(id).addEventListener('change', () => { syncAssessment(); });
+      el(id).addEventListener('input', () => { syncAssessment(); saveNow(); });
+      el(id).addEventListener('change', () => { syncAssessment(); saveNow(); });
     });
     ['timing','dechallenge','rechallenge'].forEach(id => {
-      el(id).addEventListener('change', () => syncAssessment());
+      el(id).addEventListener('change', () => { syncAssessment(); saveNow(); });
     });
 
-    // Initial setup
+    // initial setup
     addDrug('suspected');
     addDrug('concomitant');
     loadSaved();
     syncAssessment();
     saveNow();
 
-    // Print-only render data
     window.addEventListener('beforeprint', () => {
-      const data = getFormData();
-      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
-      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
-      document.getElementById('pReporter').textContent = data.reporter.name || '-';
-      document.getElementById('pReportDate').textContent = data.reporter.reportDate || '-';
-      document.getElementById('pInitials').textContent = data.patient.initials || '-';
-      document.getElementById('pAge').textContent = data.patient.age || '-';
-      document.getElementById('pGender').textContent = data.patient.gender || '-';
-      document.getElementById('pReaction').textContent = data.event.reaction || '-';
-      document.getElementById('pWHO').textContent = who;
-      document.getElementById('pNaranjo').textContent = mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category;
-      const box = document.getElementById('pDrugs');
-      box.innerHTML = '';
-      [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row, i) => {
-        const ins = row.querySelectorAll('input, select');
-        const div = document.createElement('p');
-        div.innerHTML = `<b>${i+1}.</b> ${ins[0].value || '-'} | Dose: ${ins[1].value || '-'} | ${ins[2].value || '-'} | ${ins[3].value || '-'} | ${ins[4].value || '-'} to ${ins[5].value || '-'}`;
-        box.appendChild(div);
-      });
+      renderPrintSheet();
+      el('printClock').textContent = new Date().toLocaleString();
     });
   </script>
 </body>
