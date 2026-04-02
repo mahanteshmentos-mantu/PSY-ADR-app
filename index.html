@@ -3,8 +3,43 @@
 <head>
   <title>ADR App</title>
 </head>
-<body>
-  <h1>ADR App Working 🎉</h1>
-  <p>If you see this, your website is working!</p>
+
+<body style="font-family: Arial; padding:20px;">
+
+<h2>ADR Reporting App</h2>
+
+<h3>Patient Info</h3>
+<input id="name" placeholder="Patient Initials"><br><br>
+<input id="age" placeholder="Age"><br><br>
+
+<h3>ADR Event</h3>
+<textarea id="reaction" placeholder="Describe reaction"></textarea><br><br>
+
+<h3>Drug</h3>
+<input id="drug" placeholder="Drug name"><br><br>
+
+<button onclick="calculate()">Assess ADR</button>
+
+<h3>Result:</h3>
+<p id="result"></p>
+
+<script>
+function calculate() {
+  let reaction = document.getElementById("reaction").value;
+
+  if(reaction === "") {
+    document.getElementById("result").innerText = "Enter ADR details";
+    return;
+  }
+
+  // Simple logic
+  let who = "Possible";
+  let naranjo = 3;
+
+  document.getElementById("result").innerText =
+    "WHO: " + who + " | Naranjo Score: " + naranjo;
+}
+</script>
+
 </body>
 </html>
