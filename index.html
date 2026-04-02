@@ -1,167 +1,770 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>ADR App</title>
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  Copy,
+  FileDown,
+  Lock,
+  Plus,
+  Printer,
+  Save,
+  ShieldAlert,
+  Sparkles,
+  Trash2,
+  Upload,
+} from "lucide-react";
 
-  <!-- PDF Library -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+const LOCAL_STORAGE_KEY = "adr_webapp_v2";
 
-  <style>
-    body { font-family: Arial; padding:20px; }
-    input, textarea, select { width:100%; padding:8px; margin:5px 0; }
-    .box { border:1px solid #ccc; padding:15px; margin-bottom:15px; }
-    button { padding:10px; margin:5px; }
-  </style>
-</head>
+const psychotropicDrugs = [
+  "Escitalopram",
+  "Sertraline",
+  "Fluoxetine",
+  "Paroxetine",
+  "Fluvoxamine",
+  "Venlafaxine",
+  "Duloxetine",
+  "Desvenlafaxine",
+  "Mirtazapine",
+  "Bupropion",
+  "Amitriptyline",
+  "Clomipramine",
+  "Nortriptyline",
+  "Lithium",
+  "Sodium Valproate",
+  "Carbamazepine",
+  "Lamotrigine",
+  "Olanzapine",
+  "Risperidone",
+  "Aripiprazole",
+  "Quetiapine",
+  "Haloperidol",
+  "Trifluoperazine",
+  "Clonazepam",
+  "Lorazepam",
+  "Diazepam",
+  "Alprazolam",
+  "Etizolam",
+  "Chlorpromazine",
+  "Clozapine",
+  "Pregabalin",
+  "Propranolol",
+  "Topiramate",
+  "Memantine",
+  "Donepezil",
+  "Rivastigmine",
+];
 
-<body>
+const frequencyOptions = ["OD", "BD", "TDS", "QID", "HS", "SOS", "Weekly", "Monthly", "Other"];
+const routeOptions = ["Oral", "IV", "IM", "SC", "Sublingual", "Transdermal", "Topical", "Other"];
+const reactionStatusOptions = ["Recovered", "Recovering", "Not Recovered", "Fatal", "Recovered with sequelae", "Unknown"];
+const seriousnessOptions = [
+  "Death",
+  "Congenital anomaly",
+  "Life threatening",
+  "Disability",
+  "Hospitalization-Initial/Prolonged",
+  "Other Medically important",
+];
 
-<h2>CDSCO ADR Web App (Advanced)</h2>
-
-<div class="box">
-<h3>Patient Info</h3>
-<input id="name" placeholder="Patient Initials">
-<input id="age" placeholder="Age">
-<select id="gender">
-<option>Male</option>
-<option>Female</option>
-<option>Other</option>
-</select>
-</div>
-
-<div class="box">
-<h3>ADR Event</h3>
-<textarea id="reaction" placeholder="Describe reaction"></textarea>
-<input type="date" id="start">
-<input type="date" id="stop">
-</div>
-
-<div class="box">
-<h3>Drugs</h3>
-<div id="drugs"></div>
-<button onclick="addDrug()">+ Add Drug</button>
-</div>
-
-<div class="box">
-<h3>Causality</h3>
-<label><input type="checkbox" id="timing"> Event after drug</label><br>
-<label><input type="checkbox" id="dechallenge"> Improved after stop</label><br>
-<label><input type="checkbox" id="rechallenge"> Reappeared</label><br>
-
-<br>
-<label>Mode:</label>
-<select id="mode">
-<option value="auto">Auto</option>
-<option value="manual">Manual</option>
-</select>
-
-<input id="manualWHO" placeholder="Manual WHO (optional)">
-<input id="manualNaranjo" placeholder="Manual Naranjo (optional)">
-</div>
-
-<button onclick="calculate()">Assess ADR</button>
-<button onclick="saveData()">Save Case</button>
-<button onclick="generatePDF()">Download PDF</button>
-
-<h3>Result:</h3>
-<p id="result"></p>
-
-<h3>Saved Cases:</h3>
-<ul id="cases"></ul>
-
-<script>
-
-let drugsList = ["Escitalopram","Sertraline","Olanzapine","Risperidone","Lithium","Valproate","Clonazepam"];
-
-function addDrug() {
-  let div = document.createElement("div");
-  div.innerHTML = `
-    <input list="drugList" placeholder="Drug name">
-    <input placeholder="Dose mg">
-    <hr>
-  `;
-  document.getElementById("drugs").appendChild(div);
-}
-
-// datalist
-let dataList = document.createElement("datalist");
-dataList.id = "drugList";
-
-drugsList.forEach(d=>{
-  let opt=document.createElement("option");
-  opt.value=d;
-  dataList.appendChild(opt);
+const emptyDrug = () => ({
+  name: "",
+  manufacturer: "",
+  batchNo: "",
+  expiryDate: "",
+  dose: "",
+  route: "Oral",
+  frequency: "OD",
+  therapyStart: "",
+  therapyStop: "",
+  indication: "",
+  type: "Suspected",
+  actionTaken: "Dose not changed",
+  reintroduced: "Unknown",
+  reintroDose: "",
+  reactionReappeared: "Unknown",
 });
-document.body.appendChild(dataList);
 
-// causality
-function calculate(){
-  let score=0;
+const emptyReport = () => ({
+  reporter: { name: "", address: "", pin: "", email: "", contact: "", occupation: "", reportDate: "" },
+  patient: { initials: "", age: "", dob: "", gender: "", weight: "", regNo: "" },
+  event: { reaction: "", startDate: "", stopDate: "", management: "" },
+  drugs: [emptyDrug()],
+  concomitantDrugs: [emptyDrug()],
+  history: "",
+  investigations: "",
+  seriousness: "",
+  outcome: "Unknown",
+  aiMode: true,
+  manualWho: "",
+  manualNaranjo: "",
+});
 
-  if(timing.checked) score+=2;
-  if(dechallenge.checked) score+=1;
-  if(rechallenge.checked) score+=2;
+function scoreNaranjo(report) {
+  let score = 0;
+  const hasDrug = report.drugs.some((d) => d.name.trim());
+  const eventAfterDrug = Boolean(report.event.startDate) && hasDrug;
+  const dechallengePositive = report.drugs.some((d) => d.actionTaken === "Drug withdrawn" || d.actionTaken === "Dose reduced");
+  const rechallengePositive = report.drugs.some((d) => d.reactionReappeared === "Yes");
+  const alternateCause = report.history.trim().length > 0 && report.history.toLowerCase().includes("alternative");
+  const knownReaction = report.event.reaction.trim().length > 0;
 
-  let naranjo="Doubtful";
-  if(score>=9) naranjo="Definite";
-  else if(score>=5) naranjo="Probable";
-  else if(score>=1) naranjo="Possible";
+  if (eventAfterDrug) score += 2;
+  if (knownReaction) score += 1;
+  if (dechallengePositive) score += 1;
+  if (rechallengePositive) score += 2;
+  if (!alternateCause) score += 1;
 
-  let who="Possible";
-  if(timing.checked && dechallenge.checked) who="Probable";
+  let category = "Doubtful";
+  if (score >= 9) category = "Definite";
+  else if (score >= 5) category = "Probable";
+  else if (score >= 1) category = "Possible";
 
-  if(mode.value==="manual"){
-    who = manualWHO.value || who;
-    naranjo = manualNaranjo.value || naranjo;
-  }
-
-  result.innerText = "WHO: "+who+" | Naranjo: "+naranjo+" ("+score+")";
+  return { score, category };
 }
 
-// save
-function saveData(){
-  let data={
-    name:name.value,
-    age:age.value,
-    reaction:reaction.value
+function assessWHO(report) {
+  const hasTemporalRelation = Boolean(report.event.startDate) && report.drugs.some((d) => d.therapyStart);
+  const positiveDechallenge = report.drugs.some((d) => ["Drug withdrawn", "Dose reduced"].includes(d.actionTaken));
+  const rechallenge = report.drugs.some((d) => d.reactionReappeared === "Yes");
+  const alternativeCauseMentioned = report.history.toLowerCase().includes("alternative");
+
+  let category = "Possible";
+  if (!hasTemporalRelation || alternativeCauseMentioned) category = "Unlikely";
+  if (hasTemporalRelation && positiveDechallenge && !alternativeCauseMentioned) category = "Probable/Likely";
+  if (rechallenge && positiveDechallenge && !alternativeCauseMentioned) category = "Certain";
+
+  return category;
+}
+
+function cx(...parts) {
+  return parts.filter(Boolean).join(" ");
+}
+
+function Section({ title, subtitle, children, accent = "slate", action }) {
+  const accents = {
+    slate: "border-slate-200 bg-white",
+    blue: "border-blue-200 bg-white",
+    green: "border-emerald-200 bg-white",
+    violet: "border-violet-200 bg-white",
+    amber: "border-amber-200 bg-white",
+    rose: "border-rose-200 bg-white",
   };
 
-  let arr=JSON.parse(localStorage.getItem("adr")||"[]");
-  arr.push(data);
-  localStorage.setItem("adr",JSON.stringify(arr));
+  const headers = {
+    slate: "from-slate-900 to-slate-700",
+    blue: "from-blue-700 to-cyan-600",
+    green: "from-emerald-700 to-green-600",
+    violet: "from-violet-700 to-fuchsia-600",
+    amber: "from-amber-700 to-orange-600",
+    rose: "from-rose-700 to-pink-600",
+  };
 
-  loadCases();
+  return (
+    <section className={cx("overflow-hidden rounded-3xl border shadow-sm", accents[accent] || accents.slate)}>
+      <div className={cx("flex items-start justify-between gap-4 px-5 py-4 text-white", `bg-gradient-to-r ${headers[accent] || headers.slate}`)}>
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          {subtitle ? <p className="mt-1 text-sm text-white/80">{subtitle}</p> : null}
+        </div>
+        {action ? <div>{action}</div> : null}
+      </div>
+      <div className="bg-white p-5">{children}</div>
+    </section>
+  );
 }
 
-// load
-function loadCases(){
-  let arr=JSON.parse(localStorage.getItem("adr")||"[]");
-  let list=document.getElementById("cases");
-  list.innerHTML="";
-
-  arr.forEach((c,i)=>{
-    let li=document.createElement("li");
-    li.innerText = c.name+" - "+c.reaction;
-    list.appendChild(li);
-  });
-}
-loadCases();
-
-// PDF
-function generatePDF(){
-  const { jsPDF } = window.jspdf;
-  let doc = new jsPDF();
-
-  doc.text("ADR Report",10,10);
-  doc.text("Patient: "+name.value,10,20);
-  doc.text("Age: "+age.value,10,30);
-  doc.text("Reaction: "+reaction.value,10,40);
-  doc.text(result.innerText,10,50);
-
-  doc.save("ADR_Report.pdf");
+function Field({ label, children, hint }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+      {children}
+      {hint ? <span className="mt-1 block text-xs text-slate-400">{hint}</span> : null}
+    </label>
+  );
 }
 
-</script>
+function Input(props) {
+  return (
+    <input
+      {...props}
+      className={cx(
+        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
+        props.className
+      )}
+    />
+  );
+}
 
-</body>
-</html>
+function Textarea(props) {
+  return (
+    <textarea
+      {...props}
+      className={cx(
+        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
+        props.className
+      )}
+    />
+  );
+}
+
+function Select(props) {
+  return (
+    <select
+      {...props}
+      className={cx(
+        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
+        props.className
+      )}
+    />
+  );
+}
+
+function Pill({ children, tone = "slate" }) {
+  const styles = {
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+    blue: "bg-blue-50 text-blue-700 ring-blue-200",
+    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
+    violet: "bg-violet-50 text-violet-700 ring-violet-200",
+    amber: "bg-amber-50 text-amber-700 ring-amber-200",
+    rose: "bg-rose-50 text-rose-700 ring-rose-200",
+  };
+
+  return <span className={cx("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1", styles[tone] || styles.slate)}>{children}</span>;
+}
+
+function StatCard({ label, value, tone = "slate", icon }) {
+  const styles = {
+    slate: "bg-slate-50 text-slate-900 border-slate-200",
+    blue: "bg-blue-50 text-blue-900 border-blue-200",
+    green: "bg-emerald-50 text-emerald-900 border-emerald-200",
+    violet: "bg-violet-50 text-violet-900 border-violet-200",
+    amber: "bg-amber-50 text-amber-900 border-amber-200",
+    rose: "bg-rose-50 text-rose-900 border-rose-200",
+  };
+
+  return (
+    <div className={cx("rounded-3xl border p-4 shadow-sm", styles[tone] || styles.slate)}>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+        {icon ? <div className="text-slate-500">{icon}</div> : null}
+      </div>
+      <div className="mt-2 text-xl font-bold tracking-tight">{value}</div>
+    </div>
+  );
+}
+
+function ProgressBar({ value }) {
+  return (
+    <div className="h-3 overflow-hidden rounded-full bg-slate-200">
+      <div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    </div>
+  );
+}
+
+export default function App() {
+  const [report, setReport] = useState(emptyReport);
+  const [reporterLocked, setReporterLocked] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+  const [drugSearch, setDrugSearch] = useState("");
+  const [activeDrugSearchIndex, setActiveDrugSearchIndex] = useState(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setReport((prev) => ({ ...prev, ...parsed }));
+        setReporterLocked(Boolean(parsed?.reporter?.name || parsed?.reporter?.email || parsed?.reporter?.contact));
+      } catch {
+        // ignore bad saved state
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(report));
+  }, [report]);
+
+  const whoAuto = useMemo(() => assessWHO(report), [report]);
+  const naranjoAuto = useMemo(() => scoreNaranjo(report), [report]);
+
+  const visibleDrugSuggestions = useMemo(() => {
+    const q = drugSearch.trim().toLowerCase();
+    if (!q) return psychotropicDrugs.slice(0, 8);
+    return psychotropicDrugs.filter((drug) => drug.toLowerCase().includes(q)).slice(0, 8);
+  }, [drugSearch]);
+
+  const updateReporter = (key, value) => {
+    if (reporterLocked) return;
+    setReport((prev) => ({ ...prev, reporter: { ...prev.reporter, [key]: value } }));
+  };
+
+  const updatePatient = (key, value) => setReport((prev) => ({ ...prev, patient: { ...prev.patient, [key]: value } }));
+  const updateEvent = (key, value) => setReport((prev) => ({ ...prev, event: { ...prev.event, [key]: value } }));
+  const updateTop = (key, value) => setReport((prev) => ({ ...prev, [key]: value }));
+
+  const updateDrug = (index, key, value, listName = "drugs") => {
+    setReport((prev) => {
+      const list = [...prev[listName]];
+      list[index] = { ...list[index], [key]: value };
+      return { ...prev, [listName]: list };
+    });
+  };
+
+  const addDrug = (listName = "drugs") => setReport((prev) => ({ ...prev, [listName]: [...prev[listName], emptyDrug()] }));
+  const removeDrug = (index, listName = "drugs") =>
+    setReport((prev) => {
+      const list = prev[listName].filter((_, i) => i !== index);
+      return { ...prev, [listName]: list.length ? list : [emptyDrug()] };
+    });
+
+  const lockReporter = () => {
+    setReporterLocked(true);
+    setSavedMessage("Reporter details locked.");
+    window.setTimeout(() => setSavedMessage(""), 1800);
+  };
+
+  const unlockReporter = () => {
+    setReporterLocked(false);
+    setSavedMessage("Reporter details unlocked.");
+    window.setTimeout(() => setSavedMessage(""), 1800);
+  };
+
+  const resetAll = () => {
+    if (window.confirm("Clear this ADR form and start a new report?")) {
+      setReport(emptyReport());
+      setReporterLocked(false);
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    }
+  };
+
+  const saveNow = () => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(report));
+    setSavedMessage("Saved locally in this browser.");
+    window.setTimeout(() => setSavedMessage(""), 1800);
+  };
+
+  const printForm = () => window.print();
+
+  const copySummary = async () => {
+    const summary = [
+      `Patient: ${report.patient.initials || "-"} | Age: ${report.patient.age || "-"} | Gender: ${report.patient.gender || "-"}`,
+      `Reaction: ${report.event.reaction || "-"}`,
+      `WHO: ${report.aiMode ? whoAuto : report.manualWho || "-"}`,
+      `Naranjo: ${report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo || "-"}`,
+    ].join("\n");
+    try {
+      await navigator.clipboard.writeText(summary);
+      setSavedMessage("Summary copied to clipboard.");
+      window.setTimeout(() => setSavedMessage(""), 1800);
+    } catch {
+      setSavedMessage("Clipboard copy failed.");
+    }
+  };
+
+  const completion = useMemo(() => {
+    const keys = [
+      report.reporter.name,
+      report.reporter.reportDate,
+      report.patient.initials,
+      report.patient.age,
+      report.patient.gender,
+      report.event.reaction,
+      report.event.startDate,
+      report.drugs.some((d) => d.name.trim()),
+      report.history,
+      report.investigations,
+      report.seriousness,
+    ];
+    const filled = keys.filter(Boolean).length;
+    return Math.round((filled / keys.length) * 100);
+  }, [report]);
+
+  const reportDisplayWho = report.aiMode ? whoAuto : report.manualWho || "Manual not entered";
+  const reportDisplayNaranjo = report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo || "Manual not entered";
+
+  const whoTone =
+    reportDisplayWho.includes("Certain") ? "green" : reportDisplayWho.includes("Probable") ? "blue" : reportDisplayWho.includes("Possible") ? "amber" : "rose";
+  const naranjoTone =
+    reportDisplayNaranjo.includes("Definite") ? "green" : reportDisplayNaranjo.includes("Probable") ? "blue" : reportDisplayNaranjo.includes("Possible") ? "amber" : "rose";
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe_0,_#f8fafc_35%,_#eef2ff_100%)] text-slate-900">
+      <style>{`
+        @media print {
+          body { background: white; }
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      `}</style>
+
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="no-print mb-6 overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-xl backdrop-blur">
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-6 py-6 text-white sm:px-8">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15">
+                  <ShieldAlert className="h-3.5 w-3.5" />
+                  CDSCO ADR Smart Builder
+                </div>
+                <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Clean, colored, thesis-friendly ADR web app</h1>
+                <p className="mt-2 max-w-3xl text-sm text-white/75 sm:text-base">
+                  Faster reporting, psychotropic drug auto-suggest, local saving, WHO-UMC and Naranjo summary, and print-ready CDSCO-style output.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px] lg:grid-cols-1 xl:grid-cols-2">
+                <button onClick={saveNow} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600">
+                  <Save className="h-4 w-4" /> Save
+                </button>
+                <button onClick={printForm} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15">
+                  <Printer className="h-4 w-4" /> Print / PDF
+                </button>
+                <button onClick={copySummary} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-600">
+                  <Copy className="h-4 w-4" /> Copy summary
+                </button>
+                <button onClick={resetAll} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:bg-rose-600">
+                  <Trash2 className="h-4 w-4" /> New case
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 px-6 py-5 lg:grid-cols-4">
+            <StatCard label="Completion" value={`${completion}%`} tone="blue" icon={<Sparkles className="h-4 w-4" />} />
+            <StatCard label="WHO-UMC" value={reportDisplayWho} tone={whoTone} icon={<Check className="h-4 w-4" />} />
+            <StatCard label="Naranjo" value={reportDisplayNaranjo} tone={naranjoTone} icon={<ShieldAlert className="h-4 w-4" />} />
+            <StatCard label="Mode" value={report.aiMode ? "Auto" : "Manual"} tone={report.aiMode ? "green" : "violet"} icon={<Upload className="h-4 w-4" />} />
+          </div>
+          <div className="px-6 pb-6">
+            <ProgressBar value={completion} />
+            <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+              <span>Auto-saved in browser storage</span>
+              <span>{savedMessage || "Ready"}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
+          <div className="space-y-6">
+            <Section
+              title="Reporter details"
+              subtitle="Lock these after first entry. You can unlock anytime."
+              accent="slate"
+              action={
+                <div className="flex gap-2">
+                  <button onClick={reporterLocked ? unlockReporter : lockReporter} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20">
+                    <Lock className="h-4 w-4" /> {reporterLocked ? "Unlock" : "Lock"}
+                  </button>
+                </div>
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Name & address">
+                  <Textarea rows={3} value={report.reporter.name} onChange={(e) => updateReporter("name", e.target.value)} placeholder="Reporter name and full address" disabled={reporterLocked} />
+                </Field>
+                <Field label="Date of report">
+                  <Input type="date" value={report.reporter.reportDate} onChange={(e) => updateReporter("reportDate", e.target.value)} disabled={reporterLocked} />
+                </Field>
+                <Field label="PIN">
+                  <Input value={report.reporter.pin} onChange={(e) => updateReporter("pin", e.target.value)} placeholder="PIN code" disabled={reporterLocked} />
+                </Field>
+                <Field label="Email">
+                  <Input type="email" value={report.reporter.email} onChange={(e) => updateReporter("email", e.target.value)} placeholder="Email" disabled={reporterLocked} />
+                </Field>
+                <Field label="Contact no.">
+                  <Input value={report.reporter.contact} onChange={(e) => updateReporter("contact", e.target.value)} placeholder="Mobile / phone" disabled={reporterLocked} />
+                </Field>
+                <Field label="Occupation">
+                  <Input value={report.reporter.occupation} onChange={(e) => updateReporter("occupation", e.target.value)} placeholder="Clinician / Pharmacist / Nurse" disabled={reporterLocked} />
+                </Field>
+              </div>
+            </Section>
+
+            <Section title="Patient information" subtitle="Basic identity and registration details." accent="blue">
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="Patient initials *"><Input value={report.patient.initials} onChange={(e) => updatePatient("initials", e.target.value)} placeholder="e.g. AB" /></Field>
+                <Field label="Age"><Input value={report.patient.age} onChange={(e) => updatePatient("age", e.target.value)} placeholder="Age at onset" /></Field>
+                <Field label="Date of birth"><Input type="date" value={report.patient.dob} onChange={(e) => updatePatient("dob", e.target.value)} /></Field>
+                <Field label="Gender"><Select value={report.patient.gender} onChange={(e) => updatePatient("gender", e.target.value)}><option value="">Select</option><option>M</option><option>F</option><option>Other</option></Select></Field>
+                <Field label="Weight (kg)"><Input value={report.patient.weight} onChange={(e) => updatePatient("weight", e.target.value)} placeholder="Weight" /></Field>
+                <Field label="Reg / IPD / OPD / CR No."><Input value={report.patient.regNo} onChange={(e) => updatePatient("regNo", e.target.value)} placeholder="Registration number" /></Field>
+              </div>
+            </Section>
+
+            <Section title="Suspected adverse reaction" subtitle="Describe the event, timing, and management." accent="rose">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Reaction description *"><Textarea rows={4} value={report.event.reaction} onChange={(e) => updateEvent("reaction", e.target.value)} placeholder="Describe the event / reaction" /></Field>
+                <div className="grid gap-4">
+                  <Field label="Start date"><Input type="date" value={report.event.startDate} onChange={(e) => updateEvent("startDate", e.target.value)} /></Field>
+                  <Field label="Stop date (optional)"><Input type="date" value={report.event.stopDate} onChange={(e) => updateEvent("stopDate", e.target.value)} /></Field>
+                  <Field label="Management details"><Textarea rows={4} value={report.event.management} onChange={(e) => updateEvent("management", e.target.value)} placeholder="Treatment / observation / action taken" /></Field>
+                </div>
+              </div>
+            </Section>
+
+            <Section
+              title="Suspected medication(s)"
+              subtitle="Type a psychotropic drug, choose it, and fill dose + dates."
+              accent="violet"
+              action={<button onClick={() => addDrug("drugs")} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20"><Plus className="h-4 w-4" /> Add drug</button>}
+            >
+              <div className="space-y-4">
+                {report.drugs.map((drug, index) => (
+                  <div key={index} className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Pill tone={drug.type === "Suspected" ? "rose" : "slate"}>{drug.type}</Pill>
+                        <span className="font-semibold text-slate-800">Drug #{index + 1}</span>
+                      </div>
+                      <button onClick={() => removeDrug(index, "drugs")} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        <Trash2 className="h-4 w-4" /> Remove
+                      </button>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Field label="Drug name">
+                        <div className="relative">
+                          <Input
+                            value={drug.name}
+                            onChange={(e) => {
+                              updateDrug(index, "name", e.target.value, "drugs");
+                              setDrugSearch(e.target.value);
+                              setActiveDrugSearchIndex(index);
+                            }}
+                            onFocus={() => {
+                              setDrugSearch(drug.name);
+                              setActiveDrugSearchIndex(index);
+                            }}
+                            placeholder="Start typing drug name"
+                          />
+                          {activeDrugSearchIndex === index && visibleDrugSuggestions.length > 0 && drugSearch.trim() ? (
+                            <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+                              {visibleDrugSuggestions.map((s) => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => {
+                                    updateDrug(index, "name", s, "drugs");
+                                    setDrugSearch("");
+                                    setActiveDrugSearchIndex(null);
+                                  }}
+                                  className="block w-full px-4 py-2.5 text-left text-sm hover:bg-violet-50"
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </Field>
+                      <Field label="Dose (mg)"><Input value={drug.dose} onChange={(e) => updateDrug(index, "dose", e.target.value, "drugs")} placeholder="e.g. 10" /></Field>
+                      <Field label="Frequency"><Select value={drug.frequency} onChange={(e) => updateDrug(index, "frequency", e.target.value, "drugs")}>{frequencyOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+                      <Field label="Route"><Select value={drug.route} onChange={(e) => updateDrug(index, "route", e.target.value, "drugs")}>{routeOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+                      <Field label="Therapy start"><Input type="date" value={drug.therapyStart} onChange={(e) => updateDrug(index, "therapyStart", e.target.value, "drugs")} /></Field>
+                      <Field label="Therapy stop"><Input type="date" value={drug.therapyStop} onChange={(e) => updateDrug(index, "therapyStop", e.target.value, "drugs")} /></Field>
+                      <Field label="Indication"><Input value={drug.indication} onChange={(e) => updateDrug(index, "indication", e.target.value, "drugs")} placeholder="Why prescribed" /></Field>
+                      <Field label="Type"><Select value={drug.type} onChange={(e) => updateDrug(index, "type", e.target.value, "drugs")}><option>Suspected</option><option>Concomitant</option></Select></Field>
+                      <Field label="Action taken after reaction"><Select value={drug.actionTaken} onChange={(e) => updateDrug(index, "actionTaken", e.target.value, "drugs")}><option>Drug withdrawn</option><option>Dose increased</option><option>Dose reduced</option><option>Dose not changed</option><option>Not applicable</option><option>Unknown</option></Select></Field>
+                      <Field label="Reappeared after reintroduction"><Select value={drug.reactionReappeared} onChange={(e) => updateDrug(index, "reactionReappeared", e.target.value, "drugs")}><option>Yes</option><option>No</option><option>Effect unknown</option><option>Unknown</option></Select></Field>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section
+              title="Concomitant medicines"
+              subtitle="Include self-medication and herbal remedies not used to treat the reaction."
+              accent="amber"
+              action={<button onClick={() => addDrug("concomitantDrugs")} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20"><Plus className="h-4 w-4" /> Add concomitant</button>}
+            >
+              <div className="space-y-4">
+                {report.concomitantDrugs.map((drug, index) => (
+                  <div key={index} className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Pill tone="amber">Concomitant</Pill>
+                        <span className="font-semibold text-slate-800">Medication #{index + 1}</span>
+                      </div>
+                      <button onClick={() => removeDrug(index, "concomitantDrugs")} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                        <Trash2 className="h-4 w-4" /> Remove
+                      </button>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Field label="Name"><Input value={drug.name} onChange={(e) => updateDrug(index, "name", e.target.value, "concomitantDrugs")} placeholder="Brand or generic" /></Field>
+                      <Field label="Dose"><Input value={drug.dose} onChange={(e) => updateDrug(index, "dose", e.target.value, "concomitantDrugs")} placeholder="Dose" /></Field>
+                      <Field label="Route"><Select value={drug.route} onChange={(e) => updateDrug(index, "route", e.target.value, "concomitantDrugs")}>{routeOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+                      <Field label="Frequency"><Select value={drug.frequency} onChange={(e) => updateDrug(index, "frequency", e.target.value, "concomitantDrugs")}>{frequencyOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+                      <Field label="Date started"><Input type="date" value={drug.therapyStart} onChange={(e) => updateDrug(index, "therapyStart", e.target.value, "concomitantDrugs")} /></Field>
+                      <Field label="Date stopped"><Input type="date" value={drug.therapyStop} onChange={(e) => updateDrug(index, "therapyStop", e.target.value, "concomitantDrugs")} /></Field>
+                      <Field label="Indication"><Input value={drug.indication} onChange={(e) => updateDrug(index, "indication", e.target.value, "concomitantDrugs")} placeholder="Indication" /></Field>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section title="Medical history and investigations" subtitle="Add comorbidities, allergies, and relevant investigations." accent="green">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Field label="Relevant medical / medication history"><Textarea rows={6} value={report.history} onChange={(e) => updateTop("history", e.target.value)} placeholder="Allergies, pregnancy, addiction, hepatic or renal dysfunction, etc." /></Field>
+                <Field label="Relevant investigations with dates"><Textarea rows={6} value={report.investigations} onChange={(e) => updateTop("investigations", e.target.value)} placeholder="Lab values, dates, imaging, ECG, etc." /></Field>
+              </div>
+            </Section>
+
+            <Section title="Seriousness and outcome" subtitle="Classify seriousness and outcome." accent="blue">
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Seriousness of reaction"><Select value={report.seriousness} onChange={(e) => updateTop("seriousness", e.target.value)}><option value="">Select</option>{seriousnessOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+                <Field label="Outcome"><Select value={report.outcome} onChange={(e) => updateTop("outcome", e.target.value)}>{reactionStatusOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+              </div>
+            </Section>
+
+            <Section title="Causality assessment" subtitle="Switch between AI-generated and manual mode." accent="violet">
+              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-3xl bg-slate-50 p-3">
+                <button onClick={() => updateTop("aiMode", true)} className={cx("rounded-2xl px-4 py-2.5 text-sm font-semibold transition", report.aiMode ? "bg-slate-900 text-white shadow-lg" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
+                  AI generated
+                </button>
+                <button onClick={() => updateTop("aiMode", false)} className={cx("rounded-2xl px-4 py-2.5 text-sm font-semibold transition", !report.aiMode ? "bg-slate-900 text-white shadow-lg" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
+                  Manual
+                </button>
+                <Pill tone={whoTone}>WHO: {whoAuto}</Pill>
+                <Pill tone={naranjoTone}>Naranjo: {naranjoAuto.category} ({naranjoAuto.score})</Pill>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="WHO-UMC causality">
+                  <Input value={report.aiMode ? whoAuto : report.manualWho} onChange={(e) => updateTop("manualWho", e.target.value)} disabled={report.aiMode} placeholder="Manual WHO category" />
+                </Field>
+                <Field label="Naranjo result">
+                  <Input value={report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo} onChange={(e) => updateTop("manualNaranjo", e.target.value)} disabled={report.aiMode} placeholder="Manual Naranjo score / category" />
+                </Field>
+              </div>
+              <div className="mt-4 rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 text-sm text-slate-700 shadow-sm">
+                <div className="font-semibold text-slate-900">Assessment summary</div>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  <div><span className="text-slate-500">WHO-UMC:</span> {reportDisplayWho}</div>
+                  <div><span className="text-slate-500">Naranjo:</span> {reportDisplayNaranjo}</div>
+                </div>
+              </div>
+            </Section>
+          </div>
+
+          <div className="space-y-6">
+            <Section title="Live preview" subtitle="A compact summary before print." accent="slate">
+              <div className="space-y-4">
+                <div className="rounded-3xl bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-200">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reporter</div>
+                  <div className="mt-1 text-base font-semibold">{report.reporter.name || "Not entered"}</div>
+                  <div className="mt-1 text-sm text-slate-600">{report.reporter.contact || ""}</div>
+                </div>
+                <div className="rounded-3xl bg-gradient-to-br from-blue-50 to-white p-4 ring-1 ring-blue-100">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">Patient</div>
+                  <div className="mt-1 text-base font-semibold">{report.patient.initials || "-"}</div>
+                  <div className="mt-1 text-sm text-slate-600">Age: {report.patient.age || "-"} · Gender: {report.patient.gender || "-"}</div>
+                </div>
+                <div className="rounded-3xl bg-gradient-to-br from-rose-50 to-white p-4 ring-1 ring-rose-100">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-rose-600">ADR</div>
+                  <div className="mt-1 text-base font-semibold">{report.event.reaction || "No reaction entered"}</div>
+                  <div className="mt-1 text-sm text-slate-600">Start: {report.event.startDate || "-"}</div>
+                </div>
+                <div className="rounded-3xl bg-gradient-to-br from-violet-50 to-white p-4 ring-1 ring-violet-100">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-violet-600">Causality</div>
+                  <div className="mt-1 text-base font-semibold">WHO: {reportDisplayWho}</div>
+                  <div className="mt-1 text-sm text-slate-600">Naranjo: {reportDisplayNaranjo}</div>
+                </div>
+              </div>
+            </Section>
+
+            <Section title="CDSCO coverage" subtitle="This app already captures the main form structure." accent="amber">
+              <ul className="space-y-2 text-sm text-slate-700">
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Reporter details</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Patient information</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Reaction start / stop / management</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Multiple suspected and concomitant medicines</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Seriousness and outcome</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> WHO + Naranjo summary</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Local save in browser</li>
+                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Print to PDF</li>
+              </ul>
+            </Section>
+          </div>
+        </div>
+
+        <div className="no-print mt-6 rounded-3xl border border-dashed border-slate-300 bg-white/70 px-5 py-4 text-sm text-slate-600 shadow-sm backdrop-blur">
+          Tip: complete one case first, then save as your working template. The app stores data locally in this browser.
+        </div>
+      </div>
+
+      <div className="print-only hidden">
+        <div className="mx-auto max-w-5xl bg-white p-8 text-black">
+          <div className="mb-4 border-b border-black pb-3">
+            <h1 className="text-2xl font-bold">Suspected Adverse Drug Reaction Reporting Form</h1>
+            <p className="text-sm">CDSCO-style generated report</p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div><b>Reporter:</b> {report.reporter.name || "-"}</div>
+            <div><b>Report date:</b> {report.reporter.reportDate || "-"}</div>
+            <div><b>Contact:</b> {report.reporter.contact || "-"}</div>
+            <div><b>Email:</b> {report.reporter.email || "-"}</div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-bold">A. Patient information</h2>
+            <div className="grid gap-2 md:grid-cols-2">
+              <div><b>Initials:</b> {report.patient.initials || "-"}</div>
+              <div><b>Age:</b> {report.patient.age || "-"}</div>
+              <div><b>Gender:</b> {report.patient.gender || "-"}</div>
+              <div><b>Weight:</b> {report.patient.weight || "-"}</div>
+              <div><b>Reg/IPD/OPD/CR No.:</b> {report.patient.regNo || "-"}</div>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-bold">B. Suspected adverse reaction</h2>
+            <div><b>Reaction:</b> {report.event.reaction || "-"}</div>
+            <div><b>Start date:</b> {report.event.startDate || "-"}</div>
+            <div><b>Stop date:</b> {report.event.stopDate || "-"}</div>
+            <div><b>Management:</b> {report.event.management || "-"}</div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-bold">C. Suspected medication(s)</h2>
+            <div className="space-y-3">
+              {report.drugs.map((d, i) => (
+                <div key={i} className="rounded border border-black p-2">
+                  <div><b>{i + 1}. Name:</b> {d.name || "-"} <b>Dose:</b> {d.dose || "-"} <b>Freq:</b> {d.frequency || "-"} <b>Route:</b> {d.route || "-"}</div>
+                  <div><b>Dates:</b> {d.therapyStart || "-"} to {d.therapyStop || "-"} | <b>Indication:</b> {d.indication || "-"}</div>
+                  <div><b>Type:</b> {d.type} | <b>Action taken:</b> {d.actionTaken} | <b>Reappeared:</b> {d.reactionReappeared}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-bold">Concomitant medicines</h2>
+            <div className="space-y-2">
+              {report.concomitantDrugs.map((d, i) => (
+                <div key={i} className="rounded border border-black p-2">
+                  <div><b>{i + 1}. Name:</b> {d.name || "-"} | <b>Dose:</b> {d.dose || "-"} | <b>Route:</b> {d.route || "-"} | <b>Freq:</b> {d.frequency || "-"}</div>
+                  <div><b>Dates:</b> {d.therapyStart || "-"} to {d.therapyStop || "-"} | <b>Indication:</b> {d.indication || "-"}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <h2 className="font-bold">History / investigations / seriousness / outcome</h2>
+            <div><b>History:</b> {report.history || "-"}</div>
+            <div><b>Investigations:</b> {report.investigations || "-"}</div>
+            <div><b>Seriousness:</b> {report.seriousness || "-"}</div>
+            <div><b>Outcome:</b> {report.outcome || "-"}</div>
+          </div>
+
+          <div className="mt-5 border-t border-black pt-3">
+            <h2 className="font-bold">Causality assessment</h2>
+            <div><b>WHO-UMC:</b> {reportDisplayWho}</div>
+            <div><b>Naranjo:</b> {reportDisplayNaranjo}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
