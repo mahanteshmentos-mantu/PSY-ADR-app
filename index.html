@@ -1,770 +1,826 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  Copy,
-  FileDown,
-  Lock,
-  Plus,
-  Printer,
-  Save,
-  ShieldAlert,
-  Sparkles,
-  Trash2,
-  Upload,
-} from "lucide-react";
-
-const LOCAL_STORAGE_KEY = "adr_webapp_v2";
-
-const psychotropicDrugs = [
-  "Escitalopram",
-  "Sertraline",
-  "Fluoxetine",
-  "Paroxetine",
-  "Fluvoxamine",
-  "Venlafaxine",
-  "Duloxetine",
-  "Desvenlafaxine",
-  "Mirtazapine",
-  "Bupropion",
-  "Amitriptyline",
-  "Clomipramine",
-  "Nortriptyline",
-  "Lithium",
-  "Sodium Valproate",
-  "Carbamazepine",
-  "Lamotrigine",
-  "Olanzapine",
-  "Risperidone",
-  "Aripiprazole",
-  "Quetiapine",
-  "Haloperidol",
-  "Trifluoperazine",
-  "Clonazepam",
-  "Lorazepam",
-  "Diazepam",
-  "Alprazolam",
-  "Etizolam",
-  "Chlorpromazine",
-  "Clozapine",
-  "Pregabalin",
-  "Propranolol",
-  "Topiramate",
-  "Memantine",
-  "Donepezil",
-  "Rivastigmine",
-];
-
-const frequencyOptions = ["OD", "BD", "TDS", "QID", "HS", "SOS", "Weekly", "Monthly", "Other"];
-const routeOptions = ["Oral", "IV", "IM", "SC", "Sublingual", "Transdermal", "Topical", "Other"];
-const reactionStatusOptions = ["Recovered", "Recovering", "Not Recovered", "Fatal", "Recovered with sequelae", "Unknown"];
-const seriousnessOptions = [
-  "Death",
-  "Congenital anomaly",
-  "Life threatening",
-  "Disability",
-  "Hospitalization-Initial/Prolonged",
-  "Other Medically important",
-];
-
-const emptyDrug = () => ({
-  name: "",
-  manufacturer: "",
-  batchNo: "",
-  expiryDate: "",
-  dose: "",
-  route: "Oral",
-  frequency: "OD",
-  therapyStart: "",
-  therapyStop: "",
-  indication: "",
-  type: "Suspected",
-  actionTaken: "Dose not changed",
-  reintroduced: "Unknown",
-  reintroDose: "",
-  reactionReappeared: "Unknown",
-});
-
-const emptyReport = () => ({
-  reporter: { name: "", address: "", pin: "", email: "", contact: "", occupation: "", reportDate: "" },
-  patient: { initials: "", age: "", dob: "", gender: "", weight: "", regNo: "" },
-  event: { reaction: "", startDate: "", stopDate: "", management: "" },
-  drugs: [emptyDrug()],
-  concomitantDrugs: [emptyDrug()],
-  history: "",
-  investigations: "",
-  seriousness: "",
-  outcome: "Unknown",
-  aiMode: true,
-  manualWho: "",
-  manualNaranjo: "",
-});
-
-function scoreNaranjo(report) {
-  let score = 0;
-  const hasDrug = report.drugs.some((d) => d.name.trim());
-  const eventAfterDrug = Boolean(report.event.startDate) && hasDrug;
-  const dechallengePositive = report.drugs.some((d) => d.actionTaken === "Drug withdrawn" || d.actionTaken === "Dose reduced");
-  const rechallengePositive = report.drugs.some((d) => d.reactionReappeared === "Yes");
-  const alternateCause = report.history.trim().length > 0 && report.history.toLowerCase().includes("alternative");
-  const knownReaction = report.event.reaction.trim().length > 0;
-
-  if (eventAfterDrug) score += 2;
-  if (knownReaction) score += 1;
-  if (dechallengePositive) score += 1;
-  if (rechallengePositive) score += 2;
-  if (!alternateCause) score += 1;
-
-  let category = "Doubtful";
-  if (score >= 9) category = "Definite";
-  else if (score >= 5) category = "Probable";
-  else if (score >= 1) category = "Possible";
-
-  return { score, category };
-}
-
-function assessWHO(report) {
-  const hasTemporalRelation = Boolean(report.event.startDate) && report.drugs.some((d) => d.therapyStart);
-  const positiveDechallenge = report.drugs.some((d) => ["Drug withdrawn", "Dose reduced"].includes(d.actionTaken));
-  const rechallenge = report.drugs.some((d) => d.reactionReappeared === "Yes");
-  const alternativeCauseMentioned = report.history.toLowerCase().includes("alternative");
-
-  let category = "Possible";
-  if (!hasTemporalRelation || alternativeCauseMentioned) category = "Unlikely";
-  if (hasTemporalRelation && positiveDechallenge && !alternativeCauseMentioned) category = "Probable/Likely";
-  if (rechallenge && positiveDechallenge && !alternativeCauseMentioned) category = "Certain";
-
-  return category;
-}
-
-function cx(...parts) {
-  return parts.filter(Boolean).join(" ");
-}
-
-function Section({ title, subtitle, children, accent = "slate", action }) {
-  const accents = {
-    slate: "border-slate-200 bg-white",
-    blue: "border-blue-200 bg-white",
-    green: "border-emerald-200 bg-white",
-    violet: "border-violet-200 bg-white",
-    amber: "border-amber-200 bg-white",
-    rose: "border-rose-200 bg-white",
-  };
-
-  const headers = {
-    slate: "from-slate-900 to-slate-700",
-    blue: "from-blue-700 to-cyan-600",
-    green: "from-emerald-700 to-green-600",
-    violet: "from-violet-700 to-fuchsia-600",
-    amber: "from-amber-700 to-orange-600",
-    rose: "from-rose-700 to-pink-600",
-  };
-
-  return (
-    <section className={cx("overflow-hidden rounded-3xl border shadow-sm", accents[accent] || accents.slate)}>
-      <div className={cx("flex items-start justify-between gap-4 px-5 py-4 text-white", `bg-gradient-to-r ${headers[accent] || headers.slate}`)}>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CDSCO ADR Smart Builder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#eef5ff;
+      --card:#ffffff;
+      --text:#102033;
+      --muted:#667085;
+      --line:#d8e0ea;
+      --blue:#2563eb;
+      --blue2:#1d4ed8;
+      --green:#059669;
+      --amber:#d97706;
+      --rose:#e11d48;
+      --violet:#7c3aed;
+      --shadow: 0 12px 30px rgba(16,32,51,.10);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(circle at top left, #dbeafe 0, transparent 32%),
+        radial-gradient(circle at top right, #ede9fe 0, transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      min-height:100vh;
+    }
+    .wrap{max-width:1200px;margin:0 auto;padding:20px}
+    .hero{
+      background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 55%, #7c3aed 100%);
+      color:#fff;
+      border-radius:28px;
+      padding:24px;
+      box-shadow: var(--shadow);
+      margin-bottom:18px;
+    }
+    .hero-top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+    .badge{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.14);font-size:12px;font-weight:700
+    }
+    h1{margin:10px 0 8px;font-size:30px;line-height:1.1}
+    .sub{max-width:860px;color:rgba(255,255,255,.8);font-size:14px;line-height:1.6;margin:0}
+    .actions{display:flex;flex-wrap:wrap;gap:10px}
+    button,.btn{
+      border:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+      padding:11px 14px;border-radius:14px;font-weight:700;font-size:14px;transition:.2s ease;
+      text-decoration:none;
+    }
+    .btn-blue{background:#fff;color:#0f172a}
+    .btn-blue:hover{transform:translateY(-1px)}
+    .btn-green{background:#10b981;color:#fff}
+    .btn-amber{background:#f59e0b;color:#fff}
+    .btn-rose{background:#f43f5e;color:#fff}
+    .btn-violet{background:#8b5cf6;color:#fff}
+    .btn-soft{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.18)}
+    .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:18px}
+    .stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:14px}
+    .stat .k{font-size:12px;opacity:.8;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+    .stat .v{margin-top:6px;font-size:20px;font-weight:800}
+    .progress{height:10px;background:rgba(255,255,255,.14);border-radius:999px;overflow:hidden;margin-top:14px}
+    .progress>div{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#38bdf8,#a855f7);border-radius:999px;transition:width .35s ease}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0}
+    .note{font-size:12px;color:#475569}
+    .grid{display:grid;grid-template-columns:1.3fr .9fr;gap:16px;align-items:start}
+    .stack{display:grid;gap:16px}
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);overflow:hidden
+    }
+    .card-h{
+      padding:16px 18px;color:#fff;font-weight:800;display:flex;align-items:flex-start;justify-content:space-between;gap:10px
+    }
+    .card-h small{display:block;opacity:.85;font-weight:600;margin-top:4px;line-height:1.45}
+    .card-b{padding:18px}
+    .h-slate{background:linear-gradient(135deg,#0f172a,#334155)}
+    .h-blue{background:linear-gradient(135deg,#1d4ed8,#0ea5e9)}
+    .h-rose{background:linear-gradient(135deg,#be123c,#f43f5e)}
+    .h-violet{background:linear-gradient(135deg,#6d28d9,#8b5cf6)}
+    .h-green{background:linear-gradient(135deg,#047857,#10b981)}
+    .h-amber{background:linear-gradient(135deg,#b45309,#f59e0b)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    .form-grid.three{grid-template-columns:repeat(3,1fr)}
+    label{display:block;font-size:13px;font-weight:800;color:#334155;margin-bottom:6px}
+    input,textarea,select{
+      width:100%;padding:12px 13px;border-radius:14px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;
+      outline:none;font-size:14px;transition:.2s ease
+    }
+    input:focus,textarea:focus,select:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.09)}
+    textarea{min-height:96px;resize:vertical}
+    .section{border:1px solid #e2e8f0;border-radius:20px;padding:14px;background:linear-gradient(180deg,#fff,#fbfdff)}
+    .section + .section{margin-top:14px}
+    .section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+    .section-title h3{margin:0;font-size:16px}
+    .chips{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:12px;font-weight:800}
+    .chip.slate{background:#e2e8f0;color:#334155}
+    .chip.blue{background:#dbeafe;color:#1d4ed8}
+    .chip.green{background:#d1fae5;color:#047857}
+    .chip.violet{background:#ede9fe;color:#6d28d9}
+    .chip.amber{background:#fef3c7;color:#b45309}
+    .chip.rose{background:#ffe4e6;color:#be123c}
+    .drug-row{background:#f8fafc;border:1px solid #e2e8f0;border-radius:18px;padding:14px;margin-bottom:12px}
+    .drug-row .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .drug-row .grid{grid-template-columns:repeat(3,1fr)}
+    .small{font-size:12px;color:var(--muted)}
+    .preview-box{border-radius:18px;padding:14px;border:1px solid #e2e8f0;background:#fff}
+    .preview-item{border-radius:16px;padding:14px;background:linear-gradient(180deg,#f8fafc,#fff);border:1px solid #e2e8f0;margin-bottom:10px}
+    .preview-item b{display:block;margin-bottom:4px}
+    .summary{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    .footer-tip{margin-top:16px;border:1px dashed #cbd5e1;background:rgba(255,255,255,.65);padding:14px;border-radius:18px;color:#475569;font-size:13px}
+    .suggestions{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 18px 35px rgba(15,23,42,.12);overflow:hidden}
+    .suggestions button{width:100%;justify-content:flex-start;padding:10px 12px;border-radius:0;background:#fff;color:#0f172a;font-weight:600}
+    .suggestions button:hover{background:#f8fafc}
+    .relative{position:relative}
+    .inline-controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .toggle{display:inline-flex;gap:8px;align-items:center;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;font-weight:700;font-size:13px}
+    .divider{height:1px;background:#e2e8f0;margin:14px 0}
+    .print-only{display:none}
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+      .meta-grid{grid-template-columns:repeat(2,1fr)}
+      .form-grid,.form-grid.three,.summary{grid-template-columns:1fr}
+    }
+    @media print{
+      body{background:#fff}
+      .no-print{display:none !important}
+      .print-only{display:block !important}
+      .print-page{padding:0}
+      .card{box-shadow:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap no-print">
+    <div class="hero">
+      <div class="hero-top">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-          {subtitle ? <p className="mt-1 text-sm text-white/80">{subtitle}</p> : null}
+          <div class="badge">CDSCO ADR Smart Builder</div>
+          <h1>Clean, color-coded ADR assistant</h1>
+          <p class="sub">A practical, single-file web app for psychotropic ADR collection: quick entry, auto-suggest, WHO-UMC / Naranjo summary, local save, and print-ready report generation.</p>
         </div>
-        {action ? <div>{action}</div> : null}
+        <div class="actions">
+          <button class="btn-soft" onclick="saveNow()">Save locally</button>
+          <button class="btn-blue" onclick="copySummary()">Copy summary</button>
+          <button class="btn-green" onclick="window.print()">Print / PDF</button>
+          <button class="btn-rose" onclick="resetAll()">New case</button>
+        </div>
       </div>
-      <div className="bg-white p-5">{children}</div>
-    </section>
-  );
-}
 
-function Field({ label, children, hint }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
-      {children}
-      {hint ? <span className="mt-1 block text-xs text-slate-400">{hint}</span> : null}
-    </label>
-  );
-}
-
-function Input(props) {
-  return (
-    <input
-      {...props}
-      className={cx(
-        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
-        props.className
-      )}
-    />
-  );
-}
-
-function Textarea(props) {
-  return (
-    <textarea
-      {...props}
-      className={cx(
-        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
-        props.className
-      )}
-    />
-  );
-}
-
-function Select(props) {
-  return (
-    <select
-      {...props}
-      className={cx(
-        "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-900 focus:ring-4 focus:ring-slate-900/10",
-        props.className
-      )}
-    />
-  );
-}
-
-function Pill({ children, tone = "slate" }) {
-  const styles = {
-    slate: "bg-slate-100 text-slate-700 ring-slate-200",
-    blue: "bg-blue-50 text-blue-700 ring-blue-200",
-    green: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-    violet: "bg-violet-50 text-violet-700 ring-violet-200",
-    amber: "bg-amber-50 text-amber-700 ring-amber-200",
-    rose: "bg-rose-50 text-rose-700 ring-rose-200",
-  };
-
-  return <span className={cx("inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1", styles[tone] || styles.slate)}>{children}</span>;
-}
-
-function StatCard({ label, value, tone = "slate", icon }) {
-  const styles = {
-    slate: "bg-slate-50 text-slate-900 border-slate-200",
-    blue: "bg-blue-50 text-blue-900 border-blue-200",
-    green: "bg-emerald-50 text-emerald-900 border-emerald-200",
-    violet: "bg-violet-50 text-violet-900 border-violet-200",
-    amber: "bg-amber-50 text-amber-900 border-amber-200",
-    rose: "bg-rose-50 text-rose-900 border-rose-200",
-  };
-
-  return (
-    <div className={cx("rounded-3xl border p-4 shadow-sm", styles[tone] || styles.slate)}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
-        {icon ? <div className="text-slate-500">{icon}</div> : null}
+      <div class="meta-grid">
+        <div class="stat"><div class="k">Completion</div><div class="v" id="completionText">0%</div></div>
+        <div class="stat"><div class="k">WHO-UMC</div><div class="v" id="whoStat">Possible</div></div>
+        <div class="stat"><div class="k">Naranjo</div><div class="v" id="naranjoStat">Possible (0)</div></div>
+        <div class="stat"><div class="k">Mode</div><div class="v" id="modeStat">Auto</div></div>
       </div>
-      <div className="mt-2 text-xl font-bold tracking-tight">{value}</div>
+      <div class="progress"><div id="progressBar"></div></div>
     </div>
-  );
-}
 
-function ProgressBar({ value }) {
-  return (
-    <div className="h-3 overflow-hidden rounded-full bg-slate-200">
-      <div className="h-full rounded-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500 transition-all" style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    <div class="toolbar">
+      <div class="note" id="statusNote">Auto-saved in your browser.</div>
+      <div class="chips">
+        <span class="chip blue">Patient</span>
+        <span class="chip rose">ADR</span>
+        <span class="chip violet">Drugs</span>
+        <span class="chip green">Assessment</span>
+        <span class="chip amber">Print</span>
+      </div>
     </div>
-  );
-}
 
-export default function App() {
-  const [report, setReport] = useState(emptyReport);
-  const [reporterLocked, setReporterLocked] = useState(false);
-  const [savedMessage, setSavedMessage] = useState("");
-  const [drugSearch, setDrugSearch] = useState("");
-  const [activeDrugSearchIndex, setActiveDrugSearchIndex] = useState(null);
-
-  useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setReport((prev) => ({ ...prev, ...parsed }));
-        setReporterLocked(Boolean(parsed?.reporter?.name || parsed?.reporter?.email || parsed?.reporter?.contact));
-      } catch {
-        // ignore bad saved state
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(report));
-  }, [report]);
-
-  const whoAuto = useMemo(() => assessWHO(report), [report]);
-  const naranjoAuto = useMemo(() => scoreNaranjo(report), [report]);
-
-  const visibleDrugSuggestions = useMemo(() => {
-    const q = drugSearch.trim().toLowerCase();
-    if (!q) return psychotropicDrugs.slice(0, 8);
-    return psychotropicDrugs.filter((drug) => drug.toLowerCase().includes(q)).slice(0, 8);
-  }, [drugSearch]);
-
-  const updateReporter = (key, value) => {
-    if (reporterLocked) return;
-    setReport((prev) => ({ ...prev, reporter: { ...prev.reporter, [key]: value } }));
-  };
-
-  const updatePatient = (key, value) => setReport((prev) => ({ ...prev, patient: { ...prev.patient, [key]: value } }));
-  const updateEvent = (key, value) => setReport((prev) => ({ ...prev, event: { ...prev.event, [key]: value } }));
-  const updateTop = (key, value) => setReport((prev) => ({ ...prev, [key]: value }));
-
-  const updateDrug = (index, key, value, listName = "drugs") => {
-    setReport((prev) => {
-      const list = [...prev[listName]];
-      list[index] = { ...list[index], [key]: value };
-      return { ...prev, [listName]: list };
-    });
-  };
-
-  const addDrug = (listName = "drugs") => setReport((prev) => ({ ...prev, [listName]: [...prev[listName], emptyDrug()] }));
-  const removeDrug = (index, listName = "drugs") =>
-    setReport((prev) => {
-      const list = prev[listName].filter((_, i) => i !== index);
-      return { ...prev, [listName]: list.length ? list : [emptyDrug()] };
-    });
-
-  const lockReporter = () => {
-    setReporterLocked(true);
-    setSavedMessage("Reporter details locked.");
-    window.setTimeout(() => setSavedMessage(""), 1800);
-  };
-
-  const unlockReporter = () => {
-    setReporterLocked(false);
-    setSavedMessage("Reporter details unlocked.");
-    window.setTimeout(() => setSavedMessage(""), 1800);
-  };
-
-  const resetAll = () => {
-    if (window.confirm("Clear this ADR form and start a new report?")) {
-      setReport(emptyReport());
-      setReporterLocked(false);
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-    }
-  };
-
-  const saveNow = () => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(report));
-    setSavedMessage("Saved locally in this browser.");
-    window.setTimeout(() => setSavedMessage(""), 1800);
-  };
-
-  const printForm = () => window.print();
-
-  const copySummary = async () => {
-    const summary = [
-      `Patient: ${report.patient.initials || "-"} | Age: ${report.patient.age || "-"} | Gender: ${report.patient.gender || "-"}`,
-      `Reaction: ${report.event.reaction || "-"}`,
-      `WHO: ${report.aiMode ? whoAuto : report.manualWho || "-"}`,
-      `Naranjo: ${report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo || "-"}`,
-    ].join("\n");
-    try {
-      await navigator.clipboard.writeText(summary);
-      setSavedMessage("Summary copied to clipboard.");
-      window.setTimeout(() => setSavedMessage(""), 1800);
-    } catch {
-      setSavedMessage("Clipboard copy failed.");
-    }
-  };
-
-  const completion = useMemo(() => {
-    const keys = [
-      report.reporter.name,
-      report.reporter.reportDate,
-      report.patient.initials,
-      report.patient.age,
-      report.patient.gender,
-      report.event.reaction,
-      report.event.startDate,
-      report.drugs.some((d) => d.name.trim()),
-      report.history,
-      report.investigations,
-      report.seriousness,
-    ];
-    const filled = keys.filter(Boolean).length;
-    return Math.round((filled / keys.length) * 100);
-  }, [report]);
-
-  const reportDisplayWho = report.aiMode ? whoAuto : report.manualWho || "Manual not entered";
-  const reportDisplayNaranjo = report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo || "Manual not entered";
-
-  const whoTone =
-    reportDisplayWho.includes("Certain") ? "green" : reportDisplayWho.includes("Probable") ? "blue" : reportDisplayWho.includes("Possible") ? "amber" : "rose";
-  const naranjoTone =
-    reportDisplayNaranjo.includes("Definite") ? "green" : reportDisplayNaranjo.includes("Probable") ? "blue" : reportDisplayNaranjo.includes("Possible") ? "amber" : "rose";
-
-  return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe_0,_#f8fafc_35%,_#eef2ff_100%)] text-slate-900">
-      <style>{`
-        @media print {
-          body { background: white; }
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-        }
-      `}</style>
-
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="no-print mb-6 overflow-hidden rounded-[2rem] border border-white/70 bg-white/80 shadow-xl backdrop-blur">
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 px-6 py-6 text-white sm:px-8">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div class="grid">
+      <div class="stack">
+        <div class="card">
+          <div class="card-h h-slate">
+            <div>
+              Reporter details
+              <small>Lock after first entry. You can unlock later.</small>
+            </div>
+            <div class="inline-controls">
+              <button class="btn-soft" onclick="toggleReporterLock()" id="reporterLockBtn">Lock</button>
+            </div>
+          </div>
+          <div class="card-b">
+            <div class="form-grid">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15">
-                  <ShieldAlert className="h-3.5 w-3.5" />
-                  CDSCO ADR Smart Builder
-                </div>
-                <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Clean, colored, thesis-friendly ADR web app</h1>
-                <p className="mt-2 max-w-3xl text-sm text-white/75 sm:text-base">
-                  Faster reporting, psychotropic drug auto-suggest, local saving, WHO-UMC and Naranjo summary, and print-ready CDSCO-style output.
-                </p>
+                <label>Name & address</label>
+                <textarea id="reporterName" placeholder="Reporter name and full address"></textarea>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px] lg:grid-cols-1 xl:grid-cols-2">
-                <button onClick={saveNow} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition hover:bg-emerald-600">
-                  <Save className="h-4 w-4" /> Save
-                </button>
-                <button onClick={printForm} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/15">
-                  <Printer className="h-4 w-4" /> Print / PDF
-                </button>
-                <button onClick={copySummary} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-600">
-                  <Copy className="h-4 w-4" /> Copy summary
-                </button>
-                <button onClick={resetAll} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-500/25 transition hover:bg-rose-600">
-                  <Trash2 className="h-4 w-4" /> New case
-                </button>
+              <div>
+                <label>Date of report</label>
+                <input type="date" id="reportDate" />
+                <div class="divider"></div>
+                <label>Occupation</label>
+                <input id="occupation" placeholder="Clinician / Pharmacist / Nurse" />
               </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 px-6 py-5 lg:grid-cols-4">
-            <StatCard label="Completion" value={`${completion}%`} tone="blue" icon={<Sparkles className="h-4 w-4" />} />
-            <StatCard label="WHO-UMC" value={reportDisplayWho} tone={whoTone} icon={<Check className="h-4 w-4" />} />
-            <StatCard label="Naranjo" value={reportDisplayNaranjo} tone={naranjoTone} icon={<ShieldAlert className="h-4 w-4" />} />
-            <StatCard label="Mode" value={report.aiMode ? "Auto" : "Manual"} tone={report.aiMode ? "green" : "violet"} icon={<Upload className="h-4 w-4" />} />
-          </div>
-          <div className="px-6 pb-6">
-            <ProgressBar value={completion} />
-            <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
-              <span>Auto-saved in browser storage</span>
-              <span>{savedMessage || "Ready"}</span>
+              <div>
+                <label>PIN</label>
+                <input id="pin" placeholder="PIN code" />
+              </div>
+              <div>
+                <label>Contact no.</label>
+                <input id="contact" placeholder="Mobile / phone" />
+              </div>
+              <div>
+                <label>Email</label>
+                <input type="email" id="email" placeholder="Email" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.35fr_0.9fr]">
-          <div className="space-y-6">
-            <Section
-              title="Reporter details"
-              subtitle="Lock these after first entry. You can unlock anytime."
-              accent="slate"
-              action={
-                <div className="flex gap-2">
-                  <button onClick={reporterLocked ? unlockReporter : lockReporter} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20">
-                    <Lock className="h-4 w-4" /> {reporterLocked ? "Unlock" : "Lock"}
-                  </button>
-                </div>
-              }
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Name & address">
-                  <Textarea rows={3} value={report.reporter.name} onChange={(e) => updateReporter("name", e.target.value)} placeholder="Reporter name and full address" disabled={reporterLocked} />
-                </Field>
-                <Field label="Date of report">
-                  <Input type="date" value={report.reporter.reportDate} onChange={(e) => updateReporter("reportDate", e.target.value)} disabled={reporterLocked} />
-                </Field>
-                <Field label="PIN">
-                  <Input value={report.reporter.pin} onChange={(e) => updateReporter("pin", e.target.value)} placeholder="PIN code" disabled={reporterLocked} />
-                </Field>
-                <Field label="Email">
-                  <Input type="email" value={report.reporter.email} onChange={(e) => updateReporter("email", e.target.value)} placeholder="Email" disabled={reporterLocked} />
-                </Field>
-                <Field label="Contact no.">
-                  <Input value={report.reporter.contact} onChange={(e) => updateReporter("contact", e.target.value)} placeholder="Mobile / phone" disabled={reporterLocked} />
-                </Field>
-                <Field label="Occupation">
-                  <Input value={report.reporter.occupation} onChange={(e) => updateReporter("occupation", e.target.value)} placeholder="Clinician / Pharmacist / Nurse" disabled={reporterLocked} />
-                </Field>
-              </div>
-            </Section>
-
-            <Section title="Patient information" subtitle="Basic identity and registration details." accent="blue">
-              <div className="grid gap-4 md:grid-cols-3">
-                <Field label="Patient initials *"><Input value={report.patient.initials} onChange={(e) => updatePatient("initials", e.target.value)} placeholder="e.g. AB" /></Field>
-                <Field label="Age"><Input value={report.patient.age} onChange={(e) => updatePatient("age", e.target.value)} placeholder="Age at onset" /></Field>
-                <Field label="Date of birth"><Input type="date" value={report.patient.dob} onChange={(e) => updatePatient("dob", e.target.value)} /></Field>
-                <Field label="Gender"><Select value={report.patient.gender} onChange={(e) => updatePatient("gender", e.target.value)}><option value="">Select</option><option>M</option><option>F</option><option>Other</option></Select></Field>
-                <Field label="Weight (kg)"><Input value={report.patient.weight} onChange={(e) => updatePatient("weight", e.target.value)} placeholder="Weight" /></Field>
-                <Field label="Reg / IPD / OPD / CR No."><Input value={report.patient.regNo} onChange={(e) => updatePatient("regNo", e.target.value)} placeholder="Registration number" /></Field>
-              </div>
-            </Section>
-
-            <Section title="Suspected adverse reaction" subtitle="Describe the event, timing, and management." accent="rose">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Reaction description *"><Textarea rows={4} value={report.event.reaction} onChange={(e) => updateEvent("reaction", e.target.value)} placeholder="Describe the event / reaction" /></Field>
-                <div className="grid gap-4">
-                  <Field label="Start date"><Input type="date" value={report.event.startDate} onChange={(e) => updateEvent("startDate", e.target.value)} /></Field>
-                  <Field label="Stop date (optional)"><Input type="date" value={report.event.stopDate} onChange={(e) => updateEvent("stopDate", e.target.value)} /></Field>
-                  <Field label="Management details"><Textarea rows={4} value={report.event.management} onChange={(e) => updateEvent("management", e.target.value)} placeholder="Treatment / observation / action taken" /></Field>
-                </div>
-              </div>
-            </Section>
-
-            <Section
-              title="Suspected medication(s)"
-              subtitle="Type a psychotropic drug, choose it, and fill dose + dates."
-              accent="violet"
-              action={<button onClick={() => addDrug("drugs")} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20"><Plus className="h-4 w-4" /> Add drug</button>}
-            >
-              <div className="space-y-4">
-                {report.drugs.map((drug, index) => (
-                  <div key={index} className="rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Pill tone={drug.type === "Suspected" ? "rose" : "slate"}>{drug.type}</Pill>
-                        <span className="font-semibold text-slate-800">Drug #{index + 1}</span>
-                      </div>
-                      <button onClick={() => removeDrug(index, "drugs")} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                        <Trash2 className="h-4 w-4" /> Remove
-                      </button>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <Field label="Drug name">
-                        <div className="relative">
-                          <Input
-                            value={drug.name}
-                            onChange={(e) => {
-                              updateDrug(index, "name", e.target.value, "drugs");
-                              setDrugSearch(e.target.value);
-                              setActiveDrugSearchIndex(index);
-                            }}
-                            onFocus={() => {
-                              setDrugSearch(drug.name);
-                              setActiveDrugSearchIndex(index);
-                            }}
-                            placeholder="Start typing drug name"
-                          />
-                          {activeDrugSearchIndex === index && visibleDrugSuggestions.length > 0 && drugSearch.trim() ? (
-                            <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-                              {visibleDrugSuggestions.map((s) => (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => {
-                                    updateDrug(index, "name", s, "drugs");
-                                    setDrugSearch("");
-                                    setActiveDrugSearchIndex(null);
-                                  }}
-                                  className="block w-full px-4 py-2.5 text-left text-sm hover:bg-violet-50"
-                                >
-                                  {s}
-                                </button>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      </Field>
-                      <Field label="Dose (mg)"><Input value={drug.dose} onChange={(e) => updateDrug(index, "dose", e.target.value, "drugs")} placeholder="e.g. 10" /></Field>
-                      <Field label="Frequency"><Select value={drug.frequency} onChange={(e) => updateDrug(index, "frequency", e.target.value, "drugs")}>{frequencyOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-                      <Field label="Route"><Select value={drug.route} onChange={(e) => updateDrug(index, "route", e.target.value, "drugs")}>{routeOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-                      <Field label="Therapy start"><Input type="date" value={drug.therapyStart} onChange={(e) => updateDrug(index, "therapyStart", e.target.value, "drugs")} /></Field>
-                      <Field label="Therapy stop"><Input type="date" value={drug.therapyStop} onChange={(e) => updateDrug(index, "therapyStop", e.target.value, "drugs")} /></Field>
-                      <Field label="Indication"><Input value={drug.indication} onChange={(e) => updateDrug(index, "indication", e.target.value, "drugs")} placeholder="Why prescribed" /></Field>
-                      <Field label="Type"><Select value={drug.type} onChange={(e) => updateDrug(index, "type", e.target.value, "drugs")}><option>Suspected</option><option>Concomitant</option></Select></Field>
-                      <Field label="Action taken after reaction"><Select value={drug.actionTaken} onChange={(e) => updateDrug(index, "actionTaken", e.target.value, "drugs")}><option>Drug withdrawn</option><option>Dose increased</option><option>Dose reduced</option><option>Dose not changed</option><option>Not applicable</option><option>Unknown</option></Select></Field>
-                      <Field label="Reappeared after reintroduction"><Select value={drug.reactionReappeared} onChange={(e) => updateDrug(index, "reactionReappeared", e.target.value, "drugs")}><option>Yes</option><option>No</option><option>Effect unknown</option><option>Unknown</option></Select></Field>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-
-            <Section
-              title="Concomitant medicines"
-              subtitle="Include self-medication and herbal remedies not used to treat the reaction."
-              accent="amber"
-              action={<button onClick={() => addDrug("concomitantDrugs")} className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/20 hover:bg-white/20"><Plus className="h-4 w-4" /> Add concomitant</button>}
-            >
-              <div className="space-y-4">
-                {report.concomitantDrugs.map((drug, index) => (
-                  <div key={index} className="rounded-3xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Pill tone="amber">Concomitant</Pill>
-                        <span className="font-semibold text-slate-800">Medication #{index + 1}</span>
-                      </div>
-                      <button onClick={() => removeDrug(index, "concomitantDrugs")} className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                        <Trash2 className="h-4 w-4" /> Remove
-                      </button>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <Field label="Name"><Input value={drug.name} onChange={(e) => updateDrug(index, "name", e.target.value, "concomitantDrugs")} placeholder="Brand or generic" /></Field>
-                      <Field label="Dose"><Input value={drug.dose} onChange={(e) => updateDrug(index, "dose", e.target.value, "concomitantDrugs")} placeholder="Dose" /></Field>
-                      <Field label="Route"><Select value={drug.route} onChange={(e) => updateDrug(index, "route", e.target.value, "concomitantDrugs")}>{routeOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-                      <Field label="Frequency"><Select value={drug.frequency} onChange={(e) => updateDrug(index, "frequency", e.target.value, "concomitantDrugs")}>{frequencyOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-                      <Field label="Date started"><Input type="date" value={drug.therapyStart} onChange={(e) => updateDrug(index, "therapyStart", e.target.value, "concomitantDrugs")} /></Field>
-                      <Field label="Date stopped"><Input type="date" value={drug.therapyStop} onChange={(e) => updateDrug(index, "therapyStop", e.target.value, "concomitantDrugs")} /></Field>
-                      <Field label="Indication"><Input value={drug.indication} onChange={(e) => updateDrug(index, "indication", e.target.value, "concomitantDrugs")} placeholder="Indication" /></Field>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Section>
-
-            <Section title="Medical history and investigations" subtitle="Add comorbidities, allergies, and relevant investigations." accent="green">
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Field label="Relevant medical / medication history"><Textarea rows={6} value={report.history} onChange={(e) => updateTop("history", e.target.value)} placeholder="Allergies, pregnancy, addiction, hepatic or renal dysfunction, etc." /></Field>
-                <Field label="Relevant investigations with dates"><Textarea rows={6} value={report.investigations} onChange={(e) => updateTop("investigations", e.target.value)} placeholder="Lab values, dates, imaging, ECG, etc." /></Field>
-              </div>
-            </Section>
-
-            <Section title="Seriousness and outcome" subtitle="Classify seriousness and outcome." accent="blue">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Seriousness of reaction"><Select value={report.seriousness} onChange={(e) => updateTop("seriousness", e.target.value)}><option value="">Select</option>{seriousnessOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-                <Field label="Outcome"><Select value={report.outcome} onChange={(e) => updateTop("outcome", e.target.value)}>{reactionStatusOptions.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-              </div>
-            </Section>
-
-            <Section title="Causality assessment" subtitle="Switch between AI-generated and manual mode." accent="violet">
-              <div className="mb-4 flex flex-wrap items-center gap-3 rounded-3xl bg-slate-50 p-3">
-                <button onClick={() => updateTop("aiMode", true)} className={cx("rounded-2xl px-4 py-2.5 text-sm font-semibold transition", report.aiMode ? "bg-slate-900 text-white shadow-lg" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
-                  AI generated
-                </button>
-                <button onClick={() => updateTop("aiMode", false)} className={cx("rounded-2xl px-4 py-2.5 text-sm font-semibold transition", !report.aiMode ? "bg-slate-900 text-white shadow-lg" : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50")}>
-                  Manual
-                </button>
-                <Pill tone={whoTone}>WHO: {whoAuto}</Pill>
-                <Pill tone={naranjoTone}>Naranjo: {naranjoAuto.category} ({naranjoAuto.score})</Pill>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="WHO-UMC causality">
-                  <Input value={report.aiMode ? whoAuto : report.manualWho} onChange={(e) => updateTop("manualWho", e.target.value)} disabled={report.aiMode} placeholder="Manual WHO category" />
-                </Field>
-                <Field label="Naranjo result">
-                  <Input value={report.aiMode ? `${naranjoAuto.category} (${naranjoAuto.score})` : report.manualNaranjo} onChange={(e) => updateTop("manualNaranjo", e.target.value)} disabled={report.aiMode} placeholder="Manual Naranjo score / category" />
-                </Field>
-              </div>
-              <div className="mt-4 rounded-3xl border border-violet-100 bg-gradient-to-br from-violet-50 to-white p-4 text-sm text-slate-700 shadow-sm">
-                <div className="font-semibold text-slate-900">Assessment summary</div>
-                <div className="mt-2 grid gap-2 md:grid-cols-2">
-                  <div><span className="text-slate-500">WHO-UMC:</span> {reportDisplayWho}</div>
-                  <div><span className="text-slate-500">Naranjo:</span> {reportDisplayNaranjo}</div>
-                </div>
-              </div>
-            </Section>
+        <div class="card">
+          <div class="card-h h-blue">
+            <div>Patient information<small>Core identity + registration details.</small></div>
           </div>
-
-          <div className="space-y-6">
-            <Section title="Live preview" subtitle="A compact summary before print." accent="slate">
-              <div className="space-y-4">
-                <div className="rounded-3xl bg-gradient-to-br from-slate-50 to-white p-4 ring-1 ring-slate-200">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Reporter</div>
-                  <div className="mt-1 text-base font-semibold">{report.reporter.name || "Not entered"}</div>
-                  <div className="mt-1 text-sm text-slate-600">{report.reporter.contact || ""}</div>
-                </div>
-                <div className="rounded-3xl bg-gradient-to-br from-blue-50 to-white p-4 ring-1 ring-blue-100">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-blue-600">Patient</div>
-                  <div className="mt-1 text-base font-semibold">{report.patient.initials || "-"}</div>
-                  <div className="mt-1 text-sm text-slate-600">Age: {report.patient.age || "-"} · Gender: {report.patient.gender || "-"}</div>
-                </div>
-                <div className="rounded-3xl bg-gradient-to-br from-rose-50 to-white p-4 ring-1 ring-rose-100">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-rose-600">ADR</div>
-                  <div className="mt-1 text-base font-semibold">{report.event.reaction || "No reaction entered"}</div>
-                  <div className="mt-1 text-sm text-slate-600">Start: {report.event.startDate || "-"}</div>
-                </div>
-                <div className="rounded-3xl bg-gradient-to-br from-violet-50 to-white p-4 ring-1 ring-violet-100">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-violet-600">Causality</div>
-                  <div className="mt-1 text-base font-semibold">WHO: {reportDisplayWho}</div>
-                  <div className="mt-1 text-sm text-slate-600">Naranjo: {reportDisplayNaranjo}</div>
-                </div>
-              </div>
-            </Section>
-
-            <Section title="CDSCO coverage" subtitle="This app already captures the main form structure." accent="amber">
-              <ul className="space-y-2 text-sm text-slate-700">
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Reporter details</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Patient information</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Reaction start / stop / management</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Multiple suspected and concomitant medicines</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Seriousness and outcome</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> WHO + Naranjo summary</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Local save in browser</li>
-                <li className="flex gap-2"><Check className="mt-0.5 h-4 w-4 text-emerald-600" /> Print to PDF</li>
-              </ul>
-            </Section>
+          <div class="card-b">
+            <div class="form-grid three">
+              <div><label>Patient initials *</label><input id="initials" placeholder="e.g. AB" /></div>
+              <div><label>Age</label><input id="age" placeholder="Age at onset" /></div>
+              <div><label>Date of birth</label><input type="date" id="dob" /></div>
+              <div><label>Gender</label><select id="gender"><option value="">Select</option><option>M</option><option>F</option><option>Other</option></select></div>
+              <div><label>Weight (kg)</label><input id="weight" placeholder="Weight" /></div>
+              <div><label>Reg / IPD / OPD / CR No.</label><input id="regNo" placeholder="Registration number" /></div>
+            </div>
           </div>
         </div>
 
-        <div className="no-print mt-6 rounded-3xl border border-dashed border-slate-300 bg-white/70 px-5 py-4 text-sm text-slate-600 shadow-sm backdrop-blur">
-          Tip: complete one case first, then save as your working template. The app stores data locally in this browser.
+        <div class="card">
+          <div class="card-h h-rose">
+            <div>Suspected adverse reaction<small>Enter the event and timing.</small></div>
+          </div>
+          <div class="card-b">
+            <div class="form-grid">
+              <div>
+                <label>Reaction description *</label>
+                <textarea id="reaction" placeholder="Describe the event / reaction"></textarea>
+              </div>
+              <div>
+                <label>Management details</label>
+                <textarea id="management" placeholder="Treatment / observation / action taken for ADR"></textarea>
+              </div>
+            </div>
+            <div class="form-grid three" style="margin-top:14px">
+              <div><label>Start date</label><input type="date" id="startDate" /></div>
+              <div><label>Stop date (optional)</label><input type="date" id="stopDate" /></div>
+              <div>
+                <label>Outcome</label>
+                <select id="outcome">
+                  <option>Unknown</option>
+                  <option>Recovered</option>
+                  <option>Recovering</option>
+                  <option>Not Recovered</option>
+                  <option>Fatal</option>
+                  <option>Recovered with sequelae</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h h-violet">
+            <div>Suspected medication(s)<small>Psychotropic auto-suggest + dose + dates.</small></div>
+            <div class="inline-controls"><button class="btn-soft" onclick="addDrug('suspected')">+ Add drug</button></div>
+          </div>
+          <div class="card-b" id="suspectedDrugs"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h h-amber">
+            <div>Concomitant medicines<small>Self-medication and herbal remedies not used to treat reaction.</small></div>
+            <div class="inline-controls"><button class="btn-soft" onclick="addDrug('concomitant')">+ Add concomitant</button></div>
+          </div>
+          <div class="card-b" id="concomitantDrugs"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-h h-green">
+            <div>Medical history and investigations<small>History, allergies, pregnancy, addiction, hepatic / renal issues, labs.</small></div>
+          </div>
+          <div class="card-b">
+            <div class="form-grid">
+              <div><label>Relevant medical / medication history</label><textarea id="history" placeholder="Allergies, pregnancy, addiction, hepatic or renal dysfunction, etc."></textarea></div>
+              <div><label>Relevant investigations with dates</label><textarea id="investigations" placeholder="Lab values, dates, imaging, ECG, etc."></textarea></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-h h-blue">
+            <div>Causality assessment<small>Use auto mode or switch to manual editing.</small></div>
+          </div>
+          <div class="card-b">
+            <div class="inline-controls" style="margin-bottom:12px">
+              <span class="toggle"><input type="radio" name="mode" value="auto" checked onchange="setMode('auto')"> Auto generated</span>
+              <span class="toggle"><input type="radio" name="mode" value="manual" onchange="setMode('manual')"> Manual</span>
+              <span class="chip blue" id="whoChip">WHO: Possible</span>
+              <span class="chip violet" id="narChip">Naranjo: Possible (0)</span>
+            </div>
+            <div class="form-grid">
+              <div><label>WHO-UMC causality</label><input id="manualWHO" placeholder="Manual WHO category" disabled /></div>
+              <div><label>Naranjo result</label><input id="manualNaranjo" placeholder="Manual Naranjo score / category" disabled /></div>
+            </div>
+            <div class="form-grid three" style="margin-top:14px">
+              <label class="toggle"><input type="checkbox" id="timing"> Event after drug</label>
+              <label class="toggle"><input type="checkbox" id="dechallenge"> Improved after stopping</label>
+              <label class="toggle"><input type="checkbox" id="rechallenge"> Reappeared on reintroduction</label>
+            </div>
+            <div style="margin-top:14px" class="preview-box">
+              <b>Assessment summary</b>
+              <div class="summary" style="margin-top:10px">
+                <div><span class="small">WHO-UMC:</span> <div id="whoSummary" style="font-weight:800;margin-top:4px">Possible</div></div>
+                <div><span class="small">Naranjo:</span> <div id="naranjoSummary" style="font-weight:800;margin-top:4px">Possible (0)</div></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="print-only hidden">
-        <div className="mx-auto max-w-5xl bg-white p-8 text-black">
-          <div className="mb-4 border-b border-black pb-3">
-            <h1 className="text-2xl font-bold">Suspected Adverse Drug Reaction Reporting Form</h1>
-            <p className="text-sm">CDSCO-style generated report</p>
+      <div class="stack">
+        <div class="card">
+          <div class="card-h h-slate">
+            <div>Live preview<small>See the report summary before print.</small></div>
           </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div><b>Reporter:</b> {report.reporter.name || "-"}</div>
-            <div><b>Report date:</b> {report.reporter.reportDate || "-"}</div>
-            <div><b>Contact:</b> {report.reporter.contact || "-"}</div>
-            <div><b>Email:</b> {report.reporter.email || "-"}</div>
+          <div class="card-b">
+            <div class="preview-item"><b>Reporter</b><div id="pvReporter">Not entered</div><div class="small" id="pvReporter2"></div></div>
+            <div class="preview-item" style="border-color:#dbeafe;background:linear-gradient(180deg,#eff6ff,#fff)"><b>Patient</b><div id="pvPatient">-</div><div class="small" id="pvPatient2"></div></div>
+            <div class="preview-item" style="border-color:#ffe4e6;background:linear-gradient(180deg,#fff1f2,#fff)"><b>ADR</b><div id="pvADR">No reaction entered</div><div class="small" id="pvADR2"></div></div>
+            <div class="preview-item" style="border-color:#ede9fe;background:linear-gradient(180deg,#f5f3ff,#fff)"><b>Causality</b><div id="pvWho">WHO: Possible</div><div class="small" id="pvNar">Naranjo: Possible (0)</div></div>
           </div>
+        </div>
 
-          <div className="mt-5">
-            <h2 className="font-bold">A. Patient information</h2>
-            <div className="grid gap-2 md:grid-cols-2">
-              <div><b>Initials:</b> {report.patient.initials || "-"}</div>
-              <div><b>Age:</b> {report.patient.age || "-"}</div>
-              <div><b>Gender:</b> {report.patient.gender || "-"}</div>
-              <div><b>Weight:</b> {report.patient.weight || "-"}</div>
-              <div><b>Reg/IPD/OPD/CR No.:</b> {report.patient.regNo || "-"}</div>
+        <div class="card">
+          <div class="card-h h-amber">
+            <div>CDSCO coverage<small>What this app already captures.</small></div>
+          </div>
+          <div class="card-b">
+            <div class="chips">
+              <span class="chip blue">Reporter details</span>
+              <span class="chip blue">Patient info</span>
+              <span class="chip rose">Reaction</span>
+              <span class="chip violet">Suspected drugs</span>
+              <span class="chip amber">Concomitant drugs</span>
+              <span class="chip green">History</span>
+              <span class="chip green">Investigations</span>
+              <span class="chip rose">Seriousness</span>
+              <span class="chip slate">Outcome</span>
+              <span class="chip violet">WHO + Naranjo</span>
             </div>
-          </div>
-
-          <div className="mt-5">
-            <h2 className="font-bold">B. Suspected adverse reaction</h2>
-            <div><b>Reaction:</b> {report.event.reaction || "-"}</div>
-            <div><b>Start date:</b> {report.event.startDate || "-"}</div>
-            <div><b>Stop date:</b> {report.event.stopDate || "-"}</div>
-            <div><b>Management:</b> {report.event.management || "-"}</div>
-          </div>
-
-          <div className="mt-5">
-            <h2 className="font-bold">C. Suspected medication(s)</h2>
-            <div className="space-y-3">
-              {report.drugs.map((d, i) => (
-                <div key={i} className="rounded border border-black p-2">
-                  <div><b>{i + 1}. Name:</b> {d.name || "-"} <b>Dose:</b> {d.dose || "-"} <b>Freq:</b> {d.frequency || "-"} <b>Route:</b> {d.route || "-"}</div>
-                  <div><b>Dates:</b> {d.therapyStart || "-"} to {d.therapyStop || "-"} | <b>Indication:</b> {d.indication || "-"}</div>
-                  <div><b>Type:</b> {d.type} | <b>Action taken:</b> {d.actionTaken} | <b>Reappeared:</b> {d.reactionReappeared}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <h2 className="font-bold">Concomitant medicines</h2>
-            <div className="space-y-2">
-              {report.concomitantDrugs.map((d, i) => (
-                <div key={i} className="rounded border border-black p-2">
-                  <div><b>{i + 1}. Name:</b> {d.name || "-"} | <b>Dose:</b> {d.dose || "-"} | <b>Route:</b> {d.route || "-"} | <b>Freq:</b> {d.frequency || "-"}</div>
-                  <div><b>Dates:</b> {d.therapyStart || "-"} to {d.therapyStop || "-"} | <b>Indication:</b> {d.indication || "-"}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-5">
-            <h2 className="font-bold">History / investigations / seriousness / outcome</h2>
-            <div><b>History:</b> {report.history || "-"}</div>
-            <div><b>Investigations:</b> {report.investigations || "-"}</div>
-            <div><b>Seriousness:</b> {report.seriousness || "-"}</div>
-            <div><b>Outcome:</b> {report.outcome || "-"}</div>
-          </div>
-
-          <div className="mt-5 border-t border-black pt-3">
-            <h2 className="font-bold">Causality assessment</h2>
-            <div><b>WHO-UMC:</b> {reportDisplayWho}</div>
-            <div><b>Naranjo:</b> {reportDisplayNaranjo}</div>
           </div>
         </div>
       </div>
     </div>
-  );
-}
+
+    <div class="footer-tip">Tip: fill one complete case first. The app saves locally in your browser, so you can open it again and continue.</div>
+  </div>
+
+  <div class="print-only print-page">
+    <h2>Suspected Adverse Drug Reaction Reporting Form</h2>
+    <p>CDSCO-style generated report</p>
+    <hr />
+    <p><b>Reporter:</b> <span id="pReporter"></span></p>
+    <p><b>Report date:</b> <span id="pReportDate"></span></p>
+    <p><b>Patient initials:</b> <span id="pInitials"></span></p>
+    <p><b>Age:</b> <span id="pAge"></span> <b>Gender:</b> <span id="pGender"></span></p>
+    <p><b>Reaction:</b> <span id="pReaction"></span></p>
+    <p><b>WHO-UMC:</b> <span id="pWHO"></span></p>
+    <p><b>Naranjo:</b> <span id="pNaranjo"></span></p>
+    <p><b>Drugs:</b></p>
+    <div id="pDrugs"></div>
+  </div>
+
+  <script>
+    const psychotropicDrugs = [
+      "Escitalopram","Sertraline","Fluoxetine","Paroxetine","Fluvoxamine",
+      "Venlafaxine","Duloxetine","Desvenlafaxine","Mirtazapine","Bupropion",
+      "Amitriptyline","Clomipramine","Nortriptyline","Lithium","Sodium Valproate",
+      "Carbamazepine","Lamotrigine","Olanzapine","Risperidone","Aripiprazole",
+      "Quetiapine","Haloperidol","Trifluoperazine","Clonazepam","Lorazepam",
+      "Diazepam","Alprazolam","Etizolam","Chlorpromazine","Clozapine",
+      "Pregabalin","Propranolol","Topiramate","Memantine","Donepezil","Rivastigmine"
+    ];
+
+    let reporterLocked = false;
+    let mode = 'auto';
+    let drugCounts = { suspected: 0, concomitant: 0 };
+    let drugs = { suspected: [], concomitant: [] };
+
+    const ids = [
+      'reporterName','reportDate','occupation','pin','contact','email',
+      'initials','age','dob','gender','weight','regNo','reaction','management',
+      'startDate','stopDate','outcome','history','investigations',
+      'manualWHO','manualNaranjo','timing','dechallenge','rechallenge'
+    ];
+
+    function el(id){ return document.getElementById(id); }
+    function setStatus(text){ el('statusNote').textContent = text; setTimeout(()=>el('statusNote').textContent='Auto-saved in your browser.', 2200); }
+
+    function saveNow(){
+      const data = getFormData();
+      localStorage.setItem('adr_webapp_clean_v1', JSON.stringify(data));
+      setStatus('Saved locally in this browser.');
+    }
+
+    function resetAll(){
+      if(!confirm('Clear this form and start a new case?')) return;
+      localStorage.removeItem('adr_webapp_clean_v1');
+      location.reload();
+    }
+
+    function toggleReporterLock(){
+      reporterLocked = !reporterLocked;
+      ['reporterName','reportDate','occupation','pin','contact','email'].forEach(id => {
+        el(id).disabled = reporterLocked;
+      });
+      el('reporterLockBtn').textContent = reporterLocked ? 'Unlock' : 'Lock';
+      setStatus(reporterLocked ? 'Reporter details locked.' : 'Reporter details unlocked.');
+    }
+
+    function setMode(next){
+      mode = next;
+      el('modeStat').textContent = next === 'auto' ? 'Auto' : 'Manual';
+      el('manualWHO').disabled = next === 'auto';
+      el('manualNaranjo').disabled = next === 'auto';
+      updatePreview();
+    }
+
+    function addDrug(listName){
+      const idx = ++drugCounts[listName];
+      const container = el(listName === 'suspected' ? 'suspectedDrugs' : 'concomitantDrugs');
+      const box = document.createElement('div');
+      box.className = 'drug-row';
+      box.dataset.list = listName;
+      box.dataset.idx = idx;
+      box.innerHTML = `
+        <div class="top">
+          <div class="chips">
+            <span class="chip ${listName === 'suspected' ? 'rose' : 'amber'}">${listName === 'suspected' ? 'Suspected' : 'Concomitant'}</span>
+            <span class="chip slate">Drug #${idx}</span>
+          </div>
+          <button class="btn-rose" type="button" onclick="removeDrug(this)">Remove</button>
+        </div>
+        <div class="form-grid three">
+          <div class="relative">
+            <label>Drug name</label>
+            <input placeholder="Start typing drug name" oninput="showSuggestions(this)" onfocus="showSuggestions(this)" />
+            <div class="suggestions" style="display:none"></div>
+          </div>
+          <div><label>Dose (mg)</label><input placeholder="e.g. 10" /></div>
+          <div><label>Frequency</label>
+            <select>
+              <option>OD</option><option>BD</option><option>TDS</option><option>QID</option><option>HS</option><option>SOS</option><option>Weekly</option><option>Monthly</option><option>Other</option>
+            </select>
+          </div>
+          <div><label>Route</label>
+            <select>
+              <option>Oral</option><option>IV</option><option>IM</option><option>SC</option><option>Sublingual</option><option>Transdermal</option><option>Topical</option><option>Other</option>
+            </select>
+          </div>
+          <div><label>Therapy start</label><input type="date" /></div>
+          <div><label>Therapy stop</label><input type="date" /></div>
+          <div><label>Indication</label><input placeholder="Why prescribed" /></div>
+          <div><label>Action taken</label>
+            <select>
+              <option>Drug withdrawn</option><option>Dose increased</option><option>Dose reduced</option><option>Dose not changed</option><option>Not applicable</option><option>Unknown</option>
+            </select>
+          </div>
+          <div><label>Reappeared after reintroduction</label>
+            <select>
+              <option>Yes</option><option>No</option><option>Effect unknown</option><option>Unknown</option>
+            </select>
+          </div>
+        </div>
+      `;
+      container.appendChild(box);
+      drugs[listName].push(box);
+      updateCompletion();
+      updatePreview();
+    }
+
+    function removeDrug(btn){
+      const row = btn.closest('.drug-row');
+      row.remove();
+      updateCompletion();
+      updatePreview();
+    }
+
+    function showSuggestions(input){
+      const box = input.parentElement;
+      const menu = box.querySelector('.suggestions');
+      const q = input.value.trim().toLowerCase();
+      const list = q ? psychotropicDrugs.filter(d => d.toLowerCase().includes(q)).slice(0, 8) : psychotropicDrugs.slice(0, 8);
+      if(!list.length){ menu.style.display = 'none'; return; }
+      menu.innerHTML = '';
+      list.forEach(item => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = item;
+        b.onclick = () => { input.value = item; menu.style.display = 'none'; updatePreview(); };
+        menu.appendChild(b);
+      });
+      menu.style.display = 'block';
+    }
+
+    document.addEventListener('click', (e) => {
+      document.querySelectorAll('.suggestions').forEach(m => {
+        if(!m.parentElement.contains(e.target)) m.style.display = 'none';
+      });
+    });
+
+    function naranjoScore(){
+      let score = 0;
+      if(el('timing').checked) score += 2;
+      if(el('dechallenge').checked) score += 1;
+      if(el('rechallenge').checked) score += 2;
+      const hasReaction = !!el('reaction').value.trim();
+      if(hasReaction) score += 1;
+      const altCause = el('history').value.toLowerCase().includes('alternative');
+      if(!altCause) score += 1;
+
+      let category = 'Doubtful';
+      if(score >= 9) category = 'Definite';
+      else if(score >= 5) category = 'Probable';
+      else if(score >= 1) category = 'Possible';
+      return { score, category };
+    }
+
+    function whoAssessment(){
+      const timing = el('timing').checked;
+      const dechallenge = el('dechallenge').checked;
+      const rechallenge = el('rechallenge').checked;
+      const altCause = el('history').value.toLowerCase().includes('alternative');
+      if(!timing || altCause) return 'Unlikely';
+      if(rechallenge && dechallenge && !altCause) return 'Certain';
+      if(timing && dechallenge && !altCause) return 'Probable/Likely';
+      return 'Possible';
+    }
+
+    function getVisibleDrugs(listName){
+      return [...document.querySelectorAll(`.drug-row[data-list="${listName}"]`)].map(row => {
+        const inputs = row.querySelectorAll('input, select');
+        return {
+          name: inputs[0]?.value || '',
+          dose: inputs[1]?.value || '',
+          frequency: inputs[2]?.value || '',
+          route: inputs[3]?.value || '',
+          start: inputs[4]?.value || '',
+          stop: inputs[5]?.value || '',
+          indication: inputs[6]?.value || '',
+          action: inputs[7]?.value || '',
+          reintro: inputs[8]?.value || ''
+        };
+      });
+    }
+
+    function getFormData(){
+      return {
+        reporter: {
+          name: el('reporterName').value,
+          reportDate: el('reportDate').value,
+          occupation: el('occupation').value,
+          pin: el('pin').value,
+          contact: el('contact').value,
+          email: el('email').value
+        },
+        patient: {
+          initials: el('initials').value,
+          age: el('age').value,
+          dob: el('dob').value,
+          gender: el('gender').value,
+          weight: el('weight').value,
+          regNo: el('regNo').value
+        },
+        event: {
+          reaction: el('reaction').value,
+          management: el('management').value,
+          startDate: el('startDate').value,
+          stopDate: el('stopDate').value,
+          outcome: el('outcome').value
+        },
+        suspected: getVisibleDrugs('suspected'),
+        concomitant: getVisibleDrugs('concomitant'),
+        history: el('history').value,
+        investigations: el('investigations').value,
+        mode,
+        manualWHO: el('manualWHO').value,
+        manualNaranjo: el('manualNaranjo').value,
+        timing: el('timing').checked,
+        dechallenge: el('dechallenge').checked,
+        rechallenge: el('rechallenge').checked
+      };
+    }
+
+    function updateCompletion(){
+      const data = getFormData();
+      const keys = [
+        data.reporter.name, data.reporter.reportDate,
+        data.patient.initials, data.patient.age, data.patient.gender,
+        data.event.reaction, data.event.startDate,
+        data.suspected.some(d => d.name.trim()),
+        data.history, data.investigations, data.event.outcome
+      ];
+      const filled = keys.filter(Boolean).length;
+      const pct = Math.round((filled / keys.length) * 100);
+      el('completionText').textContent = pct + '%';
+      el('progressBar').style.width = pct + '%';
+    }
+
+    function updatePreview(){
+      const data = getFormData();
+      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || 'Manual not entered');
+      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || 'Manual not entered', score: '' };
+      const narLabel = mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category;
+
+      el('whoStat').textContent = who;
+      el('naranjoStat').textContent = narLabel;
+      el('whoChip').textContent = 'WHO: ' + who;
+      el('narChip').textContent = 'Naranjo: ' + narLabel;
+      el('whoSummary').textContent = who;
+      el('naranjoSummary').textContent = narLabel;
+      el('pvReporter').textContent = data.reporter.name || 'Not entered';
+      el('pvReporter2').textContent = data.reporter.contact || '';
+      el('pvPatient').textContent = data.patient.initials || '-';
+      el('pvPatient2').textContent = `Age: ${data.patient.age || '-'} · Gender: ${data.patient.gender || '-'}`;
+      el('pvADR').textContent = data.event.reaction || 'No reaction entered';
+      el('pvADR2').textContent = data.event.startDate ? `Start: ${data.event.startDate}` : '';
+      el('pvWho').textContent = 'WHO: ' + who;
+      el('pvNar').textContent = 'Naranjo: ' + narLabel;
+      el('modeStat').textContent = mode === 'auto' ? 'Auto' : 'Manual';
+      updateCompletion();
+    }
+
+    function syncAssessment(){
+      const who = whoAssessment();
+      const nar = naranjoScore();
+      const nLabel = `${nar.category} (${nar.score})`;
+      if(mode === 'auto'){
+        el('manualWHO').value = who;
+        el('manualNaranjo').value = nLabel;
+      }
+      el('whoStat').textContent = mode === 'auto' ? who : (el('manualWHO').value || 'Manual not entered');
+      el('naranjoStat').textContent = mode === 'auto' ? nLabel : (el('manualNaranjo').value || 'Manual not entered');
+      updatePreview();
+    }
+
+    function copySummary(){
+      const data = getFormData();
+      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
+      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
+      const text = [
+        `Patient: ${data.patient.initials || '-'} | Age: ${data.patient.age || '-'} | Gender: ${data.patient.gender || '-'}`,
+        `Reaction: ${data.event.reaction || '-'}`,
+        `WHO: ${who}`,
+        `Naranjo: ${mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category}`
+      ].join('\n');
+      navigator.clipboard.writeText(text).then(() => setStatus('Summary copied to clipboard.'), () => setStatus('Clipboard copy failed.'));
+    }
+
+    function saveCaseList(data){
+      const arr = JSON.parse(localStorage.getItem('adr_cases_list') || '[]');
+      arr.push(data);
+      localStorage.setItem('adr_cases_list', JSON.stringify(arr));
+    }
+
+    function generatePDF(){
+      const data = getFormData();
+      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
+      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      let y = 12;
+      const line = (t) => { doc.text(String(t).slice(0, 95), 12, y); y += 6.8; };
+      doc.setFontSize(15); doc.text('Suspected Adverse Drug Reaction Reporting Form', 12, y); y += 8;
+      doc.setFontSize(10);
+      line(`Reporter: ${data.reporter.name || '-'}`);
+      line(`Report date: ${data.reporter.reportDate || '-'}`);
+      line(`Patient initials: ${data.patient.initials || '-'}`);
+      line(`Age: ${data.patient.age || '-'}   Gender: ${data.patient.gender || '-'}`);
+      line(`Reaction: ${data.event.reaction || '-'}`);
+      line(`Start date: ${data.event.startDate || '-'}   Stop date: ${data.event.stopDate || '-'}`);
+      line(`WHO-UMC: ${who}`);
+      line(`Naranjo: ${mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category}`);
+      y += 3;
+      doc.setFontSize(11); doc.text('Suspected medicines', 12, y); y += 6;
+      doc.setFontSize(9);
+      if(data.suspected.length === 0){ line('-'); }
+      data.suspected.forEach((d, i) => {
+        line(`${i + 1}. ${d.name || '-'} | Dose: ${d.dose || '-'} | ${d.frequency || '-'} | ${d.route || '-'} | ${d.start || '-'} to ${d.stop || '-'}`);
+      });
+      y += 3;
+      doc.setFontSize(11); doc.text('Concomitant medicines', 12, y); y += 6;
+      doc.setFontSize(9);
+      if(data.concomitant.length === 0){ line('-'); }
+      data.concomitant.forEach((d, i) => {
+        line(`${i + 1}. ${d.name || '-'} | Dose: ${d.dose || '-'} | ${d.frequency || '-'} | ${d.route || '-'}`);
+      });
+      doc.save('ADR_Report.pdf');
+    }
+
+    function saveAll(){
+      localStorage.setItem('adr_webapp_clean_v1', JSON.stringify(getFormData()));
+      saveCaseList(getFormData());
+      setStatus('Saved locally.');
+    }
+
+    function loadSaved(){
+      const saved = localStorage.getItem('adr_webapp_clean_v1');
+      if(!saved) return;
+      try{
+        const d = JSON.parse(saved);
+        el('reporterName').value = d.reporter?.name || '';
+        el('reportDate').value = d.reporter?.reportDate || '';
+        el('occupation').value = d.reporter?.occupation || '';
+        el('pin').value = d.reporter?.pin || '';
+        el('contact').value = d.reporter?.contact || '';
+        el('email').value = d.reporter?.email || '';
+        el('initials').value = d.patient?.initials || '';
+        el('age').value = d.patient?.age || '';
+        el('dob').value = d.patient?.dob || '';
+        el('gender').value = d.patient?.gender || '';
+        el('weight').value = d.patient?.weight || '';
+        el('regNo').value = d.patient?.regNo || '';
+        el('reaction').value = d.event?.reaction || '';
+        el('management').value = d.event?.management || '';
+        el('startDate').value = d.event?.startDate || '';
+        el('stopDate').value = d.event?.stopDate || '';
+        el('outcome').value = d.event?.outcome || 'Unknown';
+        el('history').value = d.history || '';
+        el('investigations').value = d.investigations || '';
+        mode = d.mode || 'auto';
+        document.querySelector(`input[name="mode"][value="${mode}"]`).checked = true;
+        el('manualWHO').value = d.manualWHO || '';
+        el('manualNaranjo').value = d.manualNaranjo || '';
+        el('timing').checked = !!d.timing;
+        el('dechallenge').checked = !!d.dechallenge;
+        el('rechallenge').checked = !!d.rechallenge;
+        setMode(mode);
+        if(d.suspected?.length){ d.suspected.forEach(() => addDrug('suspected')); }
+        if(d.concomitant?.length){ d.concomitant.forEach(() => addDrug('concomitant')); }
+        // refill drug fields
+        [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row, i) => {
+          const d0 = d.suspected[i];
+          if(!d0) return;
+          const ins = row.querySelectorAll('input, select');
+          ins[0].value = d0.name || '';
+          ins[1].value = d0.dose || '';
+          ins[2].value = d0.frequency || 'OD';
+          ins[3].value = d0.route || 'Oral';
+          ins[4].value = d0.start || '';
+          ins[5].value = d0.stop || '';
+          ins[6].value = d0.indication || '';
+          ins[7].value = d0.action || 'Dose not changed';
+          ins[8].value = d0.reintro || 'Unknown';
+        });
+        [...document.querySelectorAll('.drug-row[data-list="concomitant"]')].forEach((row, i) => {
+          const d0 = d.concomitant[i];
+          if(!d0) return;
+          const ins = row.querySelectorAll('input, select');
+          ins[0].value = d0.name || '';
+          ins[1].value = d0.dose || '';
+          ins[2].value = d0.frequency || 'OD';
+          ins[3].value = d0.route || 'Oral';
+          ins[4].value = d0.start || '';
+          ins[5].value = d0.stop || '';
+          ins[6].value = d0.indication || '';
+          ins[7].value = d0.action || 'Dose not changed';
+          ins[8].value = d0.reintro || 'Unknown';
+        });
+      }catch(e){/* ignore */}
+      updatePreview();
+    }
+
+    function resetAll(){
+      if(!confirm('Clear this form and start a new case?')) return;
+      localStorage.removeItem('adr_webapp_clean_v1');
+      location.reload();
+    }
+
+    // Events
+    ['reporterName','reportDate','occupation','pin','contact','email','initials','age','dob','gender','weight','regNo','reaction','management','startDate','stopDate','outcome','history','investigations','manualWHO','manualNaranjo'].forEach(id => {
+      el(id).addEventListener('input', () => { syncAssessment(); });
+      el(id).addEventListener('change', () => { syncAssessment(); });
+    });
+    ['timing','dechallenge','rechallenge'].forEach(id => {
+      el(id).addEventListener('change', () => syncAssessment());
+    });
+
+    // Initial setup
+    addDrug('suspected');
+    addDrug('concomitant');
+    loadSaved();
+    syncAssessment();
+    saveNow();
+
+    // Print-only render data
+    window.addEventListener('beforeprint', () => {
+      const data = getFormData();
+      const who = mode === 'auto' ? whoAssessment() : (data.manualWHO || '-');
+      const nar = mode === 'auto' ? naranjoScore() : { category: data.manualNaranjo || '-', score: '' };
+      document.getElementById('pReporter').textContent = data.reporter.name || '-';
+      document.getElementById('pReportDate').textContent = data.reporter.reportDate || '-';
+      document.getElementById('pInitials').textContent = data.patient.initials || '-';
+      document.getElementById('pAge').textContent = data.patient.age || '-';
+      document.getElementById('pGender').textContent = data.patient.gender || '-';
+      document.getElementById('pReaction').textContent = data.event.reaction || '-';
+      document.getElementById('pWHO').textContent = who;
+      document.getElementById('pNaranjo').textContent = mode === 'auto' ? `${nar.category} (${nar.score})` : nar.category;
+      const box = document.getElementById('pDrugs');
+      box.innerHTML = '';
+      [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row, i) => {
+        const ins = row.querySelectorAll('input, select');
+        const div = document.createElement('p');
+        div.innerHTML = `<b>${i+1}.</b> ${ins[0].value || '-'} | Dose: ${ins[1].value || '-'} | ${ins[2].value || '-'} | ${ins[3].value || '-'} | ${ins[4].value || '-'} to ${ins[5].value || '-'}`;
+        box.appendChild(div);
+      });
+    });
+  </script>
+</body>
+</html>
