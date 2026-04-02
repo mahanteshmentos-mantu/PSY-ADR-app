@@ -257,6 +257,23 @@
               <label class="toggle"><input type="checkbox" id="dechallenge"> Improved after stopping</label>
               <label class="toggle"><input type="checkbox" id="rechallenge"> Reappeared on reintroduction</label>
             </div>
+            <table class="sectiontable" style="margin-top:14px">
+              <tr><th style="width:74%">Naranjo questionnaire (auto-extracted from the CDSCO form, editable)</th><th style="width:26%">Answer</th></tr>
+              <tr><td>1. Are there previous conclusive reports on this reaction?</td><td><select id="q1"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>2. Did the adverse event appear after the suspected drug was given?</td><td><select id="q2"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>3. Did the reaction improve when the drug was stopped or the dose was reduced?</td><td><select id="q3"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>4. Did the reaction reappear on reintroduction?</td><td><select id="q4"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>5. Are there alternative causes that could on their own have caused the reaction?</td><td><select id="q5"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>6. Did the reaction reappear when placebo was given?</td><td><select id="q6"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>7. Was the drug detected in toxic concentrations?</td><td><select id="q7"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>8. Was the reaction more severe with increased dose or less severe with decreased dose?</td><td><select id="q8"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>9. Did the patient have a similar reaction to the same or similar drug previously?</td><td><select id="q9"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+              <tr><td>10. Was the adverse event confirmed by objective evidence?</td><td><select id="q10"><option value="unknown">Unknown</option><option value="yes">Yes</option><option value="no">No</option></select></td></tr>
+            </table>
+            <div style="margin-top:10px" class="inline-controls">
+              <button class="btn-blue" type="button" onclick="autoFillNaranjo()">Auto-fill from form</button>
+              <span class="small">The form is the source of truth; the questionnaire is for confirmation and fine-tuning.</span>
+            </div>
             <div style="margin-top:14px" class="preview-box">
               <b>Assessment summary</b>
               <div class="summary" style="margin-top:10px"><div><span class="small">WHO-UMC:</span><div id="whoSummary" style="font-weight:800;margin-top:4px">Possible</div></div><div><span class="small">Naranjo:</span><div id="naranjoSummary" style="font-weight:800;margin-top:4px">Possible (0)</div></div></div>
@@ -367,7 +384,43 @@
   </div>
 
   <script>
-    const psychotropicDrugs = ["Escitalopram","Sertraline","Fluoxetine","Paroxetine","Fluvoxamine","Venlafaxine","Duloxetine","Desvenlafaxine","Mirtazapine","Bupropion","Amitriptyline","Clomipramine","Nortriptyline","Lithium","Sodium Valproate","Carbamazepine","Lamotrigine","Olanzapine","Risperidone","Aripiprazole","Quetiapine","Haloperidol","Trifluoperazine","Clonazepam","Lorazepam","Diazepam","Alprazolam","Etizolam","Chlorpromazine","Clozapine","Pregabalin","Propranolol","Topiramate","Memantine","Donepezil","Rivastigmine"];
+    const psychotropicDrugs = [
+      // Antidepressants
+      "Escitalopram","Sertraline","Fluoxetine","Paroxetine","Fluvoxamine","Citalopram","Vilazodone","Vortioxetine",
+      "Venlafaxine","Desvenlafaxine","Duloxetine","Levomilnacipran","Milnacipran","Mirtazapine","Bupropion",
+      "Amitriptyline","Nortriptyline","Imipramine","Clomipramine","Doxepin","Desipramine","Maprotiline",
+      "Trazodone","Mianserin","Reboxetine","Agomelatine","Trimipramine",
+
+      // Antipsychotics
+      "Haloperidol","Chlorpromazine","Trifluoperazine","Fluphenazine","Perphenazine","Thiothixene","Pimozide",
+      "Thioridazine","Zuclopenthixol","Flupenthixol","Loxapine","Clozapine","Olanzapine","Quetiapine",
+      "Risperidone","Paliperidone","Aripiprazole","Brexpiprazole","Cariprazine","Amisulpride","Ziprasidone",
+      "Asenapine","Iloperidone","Lurasidone","Pimavanserin","Sulpiride","Prochlorperazine","Promethazine",
+      "Risperidone LAI","Paliperidone LAI","Aripiprazole LAI","Fluphenazine decanoate","Haloperidol decanoate",
+
+      // Mood stabilizers / anticonvulsants used in psychiatry
+      "Lithium","Lithium carbonate","Sodium Valproate","Valproic acid","Divalproex sodium","Carbamazepine",
+      "Oxcarbazepine","Lamotrigine","Topiramate","Gabapentin","Pregabalin",
+
+      // Anxiolytics / benzodiazepines / related
+      "Clonazepam","Lorazepam","Diazepam","Alprazolam","Chlordiazepoxide","Nitrazepam","Temazepam",
+      "Oxazepam","Clobazam","Midazolam","Flurazepam","Bromazepam","Prazepam","Estazolam","Triazolam",
+      "Etizolam","Zolpidem","Zopiclone","Eszopiclone",
+
+      // ADHD / stimulants / wakefulness
+      "Methylphenidate","Dexmethylphenidate","Lisdexamfetamine","Amphetamine","Atomoxetine","Guanfacine",
+      "Clonidine","Modafinil","Armodafinil",
+
+      // Anti-dementia / cognitive
+      "Donepezil","Rivastigmine","Galantamine","Memantine",
+
+      // Substance use disorder / adjuncts often seen in psychiatry
+      "Naltrexone","Acamprosate","Disulfiram","Baclofen",
+
+      // Common adjuncts in psych OPD
+      "Propranolol","Trihexyphenidyl","Benztropine","Biperiden","Hydroxyzine","Buspirone","Prazosin",
+      "Melatonin","Suvorexant","Ramelteon","Doxylamine"
+    ];
     let reporterLocked=false, mode='auto';
 
     function el(id){ return document.getElementById(id); }
@@ -410,17 +463,62 @@
     }
     document.addEventListener('click',e=>document.querySelectorAll('.suggestions').forEach(m=>{ if(!m.parentElement.contains(e.target)) m.style.display='none'; }));
 
-    function naranjoScore(){ let score=0; if(el('timing').checked) score+=2; if(el('dechallenge').checked) score+=1; if(el('rechallenge').checked) score+=2; if(el('reaction').value.trim()) score+=1; if(!el('history').value.toLowerCase().includes('alternative')) score+=1; let category='Doubtful'; if(score>=9) category='Definite'; else if(score>=5) category='Probable'; else if(score>=1) category='Possible'; return {score,category}; }
+    function autoFillNaranjo(){
+      const d = getFormData();
+      const eventDate = d.event.startDate ? new Date(d.event.startDate) : null;
+      const suspectedStart = d.suspected.find(x => x.start);
+      const hasDoseChange = d.suspected.some(x => /withdrawn|reduced|increased/i.test(x.action || ''));
+      const hasReintro = d.suspected.some(x => /yes/i.test(x.reintro || ''));
+      const hasAlternative = /alternative|other cause|another diagnosis/i.test(d.history || '');
+      const hasEvidence = !!(d.investigations || '').trim();
+      const setVal = (id, value) => { const e = el(id); if (e && e.tagName === 'SELECT') e.value = value; };
+
+      setVal('q1', d.reaction.trim() ? 'yes' : 'unknown');
+      setVal('q2', eventDate && suspectedStart && new Date(suspectedStart.start) <= eventDate ? 'yes' : 'unknown');
+      setVal('q3', hasDoseChange ? 'yes' : 'unknown');
+      setVal('q4', hasReintro ? 'yes' : 'unknown');
+      setVal('q5', hasAlternative ? 'yes' : (d.history.trim() ? 'no' : 'unknown'));
+      setVal('q6', 'unknown');
+      setVal('q7', 'unknown');
+      setVal('q8', hasDoseChange ? 'yes' : 'unknown');
+      setVal('q9', /previous|similar|earlier/i.test(d.history || '') ? 'yes' : 'unknown');
+      setVal('q10', hasEvidence ? 'yes' : 'unknown');
+    }
+
+    function naranjoScore(){
+      const weights = {
+        q1: { yes: 1, no: 0, unknown: 0 },
+        q2: { yes: 2, no: -1, unknown: 0 },
+        q3: { yes: 1, no: 0, unknown: 0 },
+        q4: { yes: 2, no: -1, unknown: 0 },
+        q5: { yes: -1, no: 2, unknown: 0 },
+        q6: { yes: -1, no: 1, unknown: 0 },
+        q7: { yes: 1, no: 0, unknown: 0 },
+        q8: { yes: 1, no: 0, unknown: 0 },
+        q9: { yes: 1, no: 0, unknown: 0 },
+        q10: { yes: 1, no: 0, unknown: 0 },
+      };
+      let score = 0;
+      Object.keys(weights).forEach((q) => {
+        const v = (el(q)?.value || 'unknown').toLowerCase();
+        score += weights[q][v] ?? 0;
+      });
+      let category = 'Doubtful';
+      if (score >= 9) category = 'Definite';
+      else if (score >= 5) category = 'Probable';
+      else if (score >= 1) category = 'Possible';
+      return { score, category };
+    }
     function whoAssessment(){ const timing=el('timing').checked, dechallenge=el('dechallenge').checked, rechallenge=el('rechallenge').checked, alt=el('history').value.toLowerCase().includes('alternative'); if(!timing || alt) return 'Unlikely'; if(rechallenge && dechallenge && !alt) return 'Certain'; if(timing && dechallenge && !alt) return 'Probable/Likely'; return 'Possible'; }
 
     function getVisibleDrugs(listName){
       return [...document.querySelectorAll(`.drug-row[data-list="${listName}"]`)].map(row=>{ const i=row.querySelectorAll('input,select'); return { name:i[0]?.value||'', dose:i[1]?.value||'', frequency:i[2]?.value||'', route:i[3]?.value||'', start:i[4]?.value||'', stop:i[5]?.value||'', indication:i[6]?.value||'', action:i[7]?.value||'', reintro:i[8]?.value||'' }; });
     }
-    function getFormData(){ return { reporter:{name:el('reporterName').value, reportDate:el('reportDate').value, occupation:el('occupation').value, pin:el('pin').value, contact:el('contact').value, email:el('email').value}, patient:{initials:el('initials').value, age:el('age').value, dob:el('dob').value, gender:el('gender').value, weight:el('weight').value, regNo:el('regNo').value}, event:{reaction:el('reaction').value, management:el('management').value, startDate:el('startDate').value, stopDate:el('stopDate').value, outcome:el('outcome').value}, suspected:getVisibleDrugs('suspected'), concomitant:getVisibleDrugs('concomitant'), history:el('history').value, investigations:el('investigations').value, mode, manualWHO:el('manualWHO').value, manualNaranjo:el('manualNaranjo').value, timing:el('timing').checked, dechallenge:el('dechallenge').checked, rechallenge:el('rechallenge').checked }; }
+    function getFormData(){ return { reporter:{name:el('reporterName').value, reportDate:el('reportDate').value, occupation:el('occupation').value, pin:el('pin').value, contact:el('contact').value, email:el('email').value}, patient:{initials:el('initials').value, age:el('age').value, dob:el('dob').value, gender:el('gender').value, weight:el('weight').value, regNo:el('regNo').value}, event:{reaction:el('reaction').value, management:el('management').value, startDate:el('startDate').value, stopDate:el('stopDate').value, outcome:el('outcome').value}, suspected:getVisibleDrugs('suspected'), concomitant:getVisibleDrugs('concomitant'), history:el('history').value, investigations:el('investigations').value, mode, manualWHO:el('manualWHO').value, manualNaranjo:el('manualNaranjo').value, q1:el('q1')?.value||'unknown', q2:el('q2')?.value||'unknown', q3:el('q3')?.value||'unknown', q4:el('q4')?.value||'unknown', q5:el('q5')?.value||'unknown', q6:el('q6')?.value||'unknown', q7:el('q7')?.value||'unknown', q8:el('q8')?.value||'unknown', q9:el('q9')?.value||'unknown', q10:el('q10')?.value||'unknown', timing:el('timing').checked, dechallenge:el('dechallenge').checked, rechallenge:el('rechallenge').checked }; }
 
     function updateCompletion(){ const d=getFormData(); const keys=[d.reporter.name,d.reporter.reportDate,d.patient.initials,d.patient.age,d.patient.gender,d.event.reaction,d.event.startDate,d.suspected.some(x=>x.name.trim()),d.history,d.investigations,d.event.outcome]; const pct=Math.round((keys.filter(Boolean).length/keys.length)*100); el('completionText').textContent=pct+'%'; el('progressBar').style.width=pct+'%'; }
     function updatePreview(){ const d=getFormData(); const who=mode==='auto'?whoAssessment():(d.manualWHO||'Manual not entered'); const nar=mode==='auto'?naranjoScore():{category:d.manualNaranjo||'Manual not entered',score:''}; const narLabel=mode==='auto'?`${nar.category} (${nar.score})`:nar.category; el('whoStat').textContent=who; el('naranjoStat').textContent=narLabel; el('whoChip').textContent='WHO: '+who; el('narChip').textContent='Naranjo: '+narLabel; el('whoSummary').textContent=who; el('naranjoSummary').textContent=narLabel; el('pvReporter').textContent=d.reporter.name||'Not entered'; el('pvReporter2').textContent=d.reporter.contact||''; el('pvPatient').textContent=d.patient.initials||'-'; el('pvPatient2').textContent=`Age: ${d.patient.age||'-'} · Gender: ${d.patient.gender||'-'}`; el('pvADR').textContent=d.event.reaction||'No reaction entered'; el('pvADR2').textContent=d.event.startDate?`Start: ${d.event.startDate}`:''; el('modeStat').textContent=mode==='auto'?'Auto':'Manual'; updateCompletion(); }
-    function syncAssessment(){ const who=whoAssessment(); const nar=naranjoScore(); const label=`${nar.category} (${nar.score})`; if(mode==='auto'){ el('manualWHO').value=who; el('manualNaranjo').value=label; } updatePreview(); }
+    function syncAssessment(){ const who=whoAssessment(); if(mode==='auto'){ autoFillNaranjo(); } const nar=naranjoScore(); const label=`${nar.category} (${nar.score})`; if(mode==='auto'){ el('manualWHO').value=who; el('manualNaranjo').value=label; } updatePreview(); }
     function copySummary(){ const d=getFormData(); const who=mode==='auto'?whoAssessment():(d.manualWHO||'-'); const nar=mode==='auto'?naranjoScore():{category:d.manualNaranjo||'-',score:''}; const text=[`Patient: ${d.patient.initials||'-'} | Age: ${d.patient.age||'-'} | Gender: ${d.patient.gender||'-'}`,`Reaction: ${d.event.reaction||'-'}`,`WHO: ${who}`,`Naranjo: ${mode==='auto'?`${nar.category} (${nar.score})`:nar.category}`].join('\n'); navigator.clipboard.writeText(text).then(()=>setStatus('Summary copied to clipboard.'),()=>setStatus('Clipboard copy failed.')); }
 
     function renderPrintSheet(){
@@ -461,10 +559,10 @@
     function generatePDF(){ renderPrintSheet(); window.print(); }
     function saveCaseList(data){ const arr=JSON.parse(localStorage.getItem('adr_cases_list')||'[]'); arr.push(data); localStorage.setItem('adr_cases_list',JSON.stringify(arr)); }
     function saveForm(){ const data=getFormData(); localStorage.setItem('adr_webapp_clean_v1',JSON.stringify(data)); saveCaseList(data); setStatus('Saved locally.'); }
-    function loadSaved(){ const saved=localStorage.getItem('adr_webapp_clean_v1'); if(!saved) return; try{ const d=JSON.parse(saved); el('reporterName').value=d.reporter?.name||''; el('reportDate').value=d.reporter?.reportDate||''; el('occupation').value=d.reporter?.occupation||''; el('pin').value=d.reporter?.pin||''; el('contact').value=d.reporter?.contact||''; el('email').value=d.reporter?.email||''; el('initials').value=d.patient?.initials||''; el('age').value=d.patient?.age||''; el('dob').value=d.patient?.dob||''; el('gender').value=d.patient?.gender||''; el('weight').value=d.patient?.weight||''; el('regNo').value=d.patient?.regNo||''; el('reaction').value=d.event?.reaction||''; el('management').value=d.event?.management||''; el('startDate').value=d.event?.startDate||''; el('stopDate').value=d.event?.stopDate||''; el('outcome').value=d.event?.outcome||'Unknown'; el('history').value=d.history||''; el('investigations').value=d.investigations||''; mode=d.mode||'auto'; document.querySelector(`input[name="mode"][value="${mode}"]`).checked=true; el('manualWHO').value=d.manualWHO||''; el('manualNaranjo').value=d.manualNaranjo||''; el('timing').checked=!!d.timing; el('dechallenge').checked=!!d.dechallenge; el('rechallenge').checked=!!d.rechallenge; setMode(mode); if(d.suspected?.length){ d.suspected.forEach(()=>addDrug('suspected')); } if(d.concomitant?.length){ d.concomitant.forEach(()=>addDrug('concomitant')); } [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row,i)=>{ const d0=d.suspected[i]; if(!d0) return; const ins=row.querySelectorAll('input,select'); ins[0].value=d0.name||''; ins[1].value=d0.dose||''; ins[2].value=d0.frequency||'OD'; ins[3].value=d0.route||'Oral'; ins[4].value=d0.start||''; ins[5].value=d0.stop||''; ins[6].value=d0.indication||''; ins[7].value=d0.action||'Dose not changed'; ins[8].value=d0.reintro||'Unknown'; }); [...document.querySelectorAll('.drug-row[data-list="concomitant"]')].forEach((row,i)=>{ const d0=d.concomitant[i]; if(!d0) return; const ins=row.querySelectorAll('input,select'); ins[0].value=d0.name||''; ins[1].value=d0.dose||''; ins[2].value=d0.frequency||'OD'; ins[3].value=d0.route||'Oral'; ins[4].value=d0.start||''; ins[5].value=d0.stop||''; ins[6].value=d0.indication||''; }); }catch(e){} updatePreview(); }
+    function loadSaved(){ const saved=localStorage.getItem('adr_webapp_clean_v1'); if(!saved) return; try{ const d=JSON.parse(saved); el('reporterName').value=d.reporter?.name||''; el('reportDate').value=d.reporter?.reportDate||''; el('occupation').value=d.reporter?.occupation||''; el('pin').value=d.reporter?.pin||''; el('contact').value=d.reporter?.contact||''; el('email').value=d.reporter?.email||''; el('initials').value=d.patient?.initials||''; el('age').value=d.patient?.age||''; el('dob').value=d.patient?.dob||''; el('gender').value=d.patient?.gender||''; el('weight').value=d.patient?.weight||''; el('regNo').value=d.patient?.regNo||''; el('reaction').value=d.event?.reaction||''; el('management').value=d.event?.management||''; el('startDate').value=d.event?.startDate||''; el('stopDate').value=d.event?.stopDate||''; el('outcome').value=d.event?.outcome||'Unknown'; el('history').value=d.history||''; el('investigations').value=d.investigations||''; mode=d.mode||'auto'; document.querySelector(`input[name="mode"][value="${mode}"]`).checked=true; el('manualWHO').value=d.manualWHO||''; el('manualNaranjo').value=d.manualNaranjo||''; el('q1').value=d.q1||'unknown'; el('q2').value=d.q2||'unknown'; el('q3').value=d.q3||'unknown'; el('q4').value=d.q4||'unknown'; el('q5').value=d.q5||'unknown'; el('q6').value=d.q6||'unknown'; el('q7').value=d.q7||'unknown'; el('q8').value=d.q8||'unknown'; el('q9').value=d.q9||'unknown'; el('q10').value=d.q10||'unknown'; el('timing').checked=!!d.timing; el('dechallenge').checked=!!d.dechallenge; el('rechallenge').checked=!!d.rechallenge; setMode(mode); if(d.suspected?.length){ d.suspected.forEach(()=>addDrug('suspected')); } if(d.concomitant?.length){ d.concomitant.forEach(()=>addDrug('concomitant')); } [...document.querySelectorAll('.drug-row[data-list="suspected"]')].forEach((row,i)=>{ const d0=d.suspected[i]; if(!d0) return; const ins=row.querySelectorAll('input,select'); ins[0].value=d0.name||''; ins[1].value=d0.dose||''; ins[2].value=d0.frequency||'OD'; ins[3].value=d0.route||'Oral'; ins[4].value=d0.start||''; ins[5].value=d0.stop||''; ins[6].value=d0.indication||''; ins[7].value=d0.action||'Dose not changed'; ins[8].value=d0.reintro||'Unknown'; }); [...document.querySelectorAll('.drug-row[data-list="concomitant"]')].forEach((row,i)=>{ const d0=d.concomitant[i]; if(!d0) return; const ins=row.querySelectorAll('input,select'); ins[0].value=d0.name||''; ins[1].value=d0.dose||''; ins[2].value=d0.frequency||'OD'; ins[3].value=d0.route||'Oral'; ins[4].value=d0.start||''; ins[5].value=d0.stop||''; ins[6].value=d0.indication||''; }); }catch(e){} updatePreview(); }
 
     ['reporterName','reportDate','occupation','pin','contact','email','initials','age','dob','gender','weight','regNo','reaction','management','startDate','stopDate','outcome','history','investigations','manualWHO','manualNaranjo'].forEach(id=>{ el(id).addEventListener('input',()=>{ syncAssessment(); saveForm(); }); el(id).addEventListener('change',()=>{ syncAssessment(); saveForm(); }); });
-    ['timing','dechallenge','rechallenge'].forEach(id=>el(id).addEventListener('change',()=>{ syncAssessment(); saveForm(); }));
+    ['timing','dechallenge','rechallenge','q1','q2','q3','q4','q5','q6','q7','q8','q9','q10'].forEach(id=>el(id)?.addEventListener('change',()=>{ syncAssessment(); saveForm(); }));
 
     addDrug('suspected'); addDrug('concomitant'); loadSaved(); syncAssessment(); saveForm();
     window.addEventListener('beforeprint',()=>{ renderPrintSheet(); });
