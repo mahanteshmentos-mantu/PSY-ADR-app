@@ -675,114 +675,119 @@
 
   let y = 10;
 
-  function line(text, space=7){
-    doc.text(text, 10, y);
-    y += space;
+  function box(title){
+    doc.setFont(undefined,"bold");
+    doc.rect(10, y, 190, 8);
+    doc.text(title, 12, y+5);
+    y += 10;
+    doc.setFont(undefined,"normal");
   }
 
-  // Title
+  function field(label, value){
+    doc.text(label + ": " + (value || "-"), 12, y);
+    y += 7;
+  }
+
+  // TITLE
   doc.setFontSize(14);
-  line("Suspected Adverse Drug Reaction Reporting Form");
+  doc.text("SUSPECTED ADVERSE DRUG REACTION REPORTING FORM", 10, y);
+  y += 8;
   doc.setFontSize(10);
-  line("CDSCO Style Generated Report");
-  y += 3;
 
-  // SECTION A
-  doc.setFont(undefined,"bold");
-  line("A. Patient Information");
-  doc.setFont(undefined,"normal");
+  // A
+  box("A. PATIENT INFORMATION");
 
-  line("Patient Initials: " + initials.value);
-  line("Age: " + age.value + "    Gender: " + gender.value);
-  line("Weight: " + weight.value);
-  line("Reg No: " + regNo.value);
+  field("Initials", initials.value);
+  field("Age", age.value);
+  field("Gender", gender.value);
+  field("Weight", weight.value);
+  field("Reg No", regNo.value);
 
   y += 3;
 
-  // SECTION B
-  doc.setFont(undefined,"bold");
-  line("B. Adverse Reaction");
-  doc.setFont(undefined,"normal");
+  // B
+  box("B. ADVERSE REACTION");
 
-  line("Reaction: " + reaction.value);
-  line("Start Date: " + startDate.value);
-  line("Stop Date: " + stopDate.value);
-  line("Outcome: " + outcome.value);
+  field("Reaction", reaction.value);
+  field("Start Date", startDate.value);
+  field("Stop Date", stopDate.value);
+  field("Outcome", outcome.value);
 
   y += 3;
 
-  // SECTION C
-  doc.setFont(undefined,"bold");
-  line("C. Suspected Drugs");
-  doc.setFont(undefined,"normal");
+  // C TABLE
+  box("C. SUSPECTED DRUGS");
 
-  let rows = document.querySelectorAll('.drug-row[data-list="suspected"]');
+  doc.setFontSize(9);
 
-  rows.forEach((row, i)=>{
-    let inputs = row.querySelectorAll("input, select");
+  let headers = ["Drug", "Dose", "Freq", "Route", "Start", "Stop"];
 
-    line(
-      (i+1)+". " +
-      (inputs[0].value || "-") +
-      " | Dose: " + (inputs[1].value || "-") +
-      " | " + (inputs[2].value || "-") +
-      " | " + (inputs[3].value || "-")
-    );
+  let rows = [];
+  document.querySelectorAll('.drug-row[data-list=\"suspected\"]').forEach(row=>{
+    let i = row.querySelectorAll("input, select");
+    rows.push([
+      i[0].value || "-",
+      i[1].value || "-",
+      i[2].value || "-",
+      i[3].value || "-",
+      i[4].value || "-",
+      i[5].value || "-"
+    ]);
+  });
 
-    line(
-      "   From: " + (inputs[4].value || "-") +
-      " To: " + (inputs[5].value || "-") +
-      " | Action: " + (inputs[7].value || "-")
+  // Draw table
+  let x = 10;
+  let colWidth = 30;
+
+  headers.forEach((h, i)=>{
+    doc.rect(x + i*colWidth, y, colWidth, 8);
+    doc.text(h, x + 2 + i*colWidth, y+5);
+  });
+
+  y += 8;
+
+  rows.forEach(r=>{
+    r.forEach((cell,i)=>{
+      doc.rect(x + i*colWidth, y, colWidth, 8);
+      doc.text(String(cell).substring(0,12), x+2+i*colWidth, y+5);
+    });
+    y += 8;
+  });
+
+  y += 3;
+
+  // D
+  box("D. CONCOMITANT DRUGS");
+
+  document.querySelectorAll('.drug-row[data-list=\"concomitant\"]').forEach((row,i)=>{
+    let d = row.querySelectorAll("input, select");
+    field(
+      (i+1)+". Drug",
+      d[0].value + " | " + d[1].value + " | " + d[2].value
     );
   });
 
   y += 3;
 
-  // SECTION D
-  doc.setFont(undefined,"bold");
-  line("D. Concomitant Drugs");
-  doc.setFont(undefined,"normal");
+  // E
+  box("E. HISTORY & INVESTIGATIONS");
 
-  let rows2 = document.querySelectorAll('.drug-row[data-list="concomitant"]');
-
-  rows2.forEach((row, i)=>{
-    let inputs = row.querySelectorAll("input, select");
-
-    line(
-      (i+1)+". " +
-      (inputs[0].value || "-") +
-      " | Dose: " + (inputs[1].value || "-") +
-      " | " + (inputs[2].value || "-")
-    );
-  });
+  field("History", history.value);
+  field("Investigations", investigations.value);
 
   y += 3;
 
-  // SECTION E
-  doc.setFont(undefined,"bold");
-  line("E. History & Investigations");
-  doc.setFont(undefined,"normal");
-
-  line("History: " + history.value);
-  line("Investigations: " + investigations.value);
-
-  y += 3;
-
-  // SECTION F
-  doc.setFont(undefined,"bold");
-  line("F. Causality Assessment");
-  doc.setFont(undefined,"normal");
+  // F
+  box("F. CAUSALITY ASSESSMENT");
 
   let who = whoAssessment();
   let nar = naranjoScore();
 
-  line("WHO-UMC: " + who);
-  line("Naranjo: " + nar.category + " (" + nar.score + ")");
+  field("WHO-UMC", who);
+  field("Naranjo", nar.category + " (" + nar.score + ")");
 
-  // SAVE
-  doc.save("CDSCO_ADR_Report.pdf");
+  doc.save("CDSCO_ADR_Form.pdf");
 }
-
     function saveAll(){
       localStorage.setItem('adr_webapp_clean_v1', JSON.stringify(getFormData()));
       saveCaseList(getFormData());
