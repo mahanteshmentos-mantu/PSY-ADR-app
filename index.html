@@ -2,21 +2,48 @@
 <html>
 <head>
   <title>ADR App</title>
+  <style>
+    body { font-family: Arial; padding:20px; }
+    input, textarea, select { margin:5px 0; padding:8px; width:100%; }
+    .box { border:1px solid #ccc; padding:15px; margin-bottom:15px; }
+    button { padding:10px; margin-top:10px; }
+  </style>
 </head>
 
-<body style="font-family: Arial; padding:20px;">
+<body>
 
-<h2>ADR Reporting App</h2>
+<h2>CDSCO ADR Web App</h2>
 
+<div class="box">
 <h3>Patient Info</h3>
-<input id="name" placeholder="Patient Initials"><br><br>
-<input id="age" placeholder="Age"><br><br>
+<input id="name" placeholder="Patient Initials">
+<input id="age" placeholder="Age">
+<select id="gender">
+<option>Male</option>
+<option>Female</option>
+<option>Other</option>
+</select>
+</div>
 
+<div class="box">
 <h3>ADR Event</h3>
-<textarea id="reaction" placeholder="Describe reaction"></textarea><br><br>
+<textarea id="reaction" placeholder="Describe reaction"></textarea>
+<input type="date" id="start">
+<input type="date" id="stop">
+</div>
 
-<h3>Drug</h3>
-<input id="drug" placeholder="Drug name"><br><br>
+<div class="box">
+<h3>Drugs</h3>
+<div id="drugs"></div>
+<button onclick="addDrug()">+ Add Drug</button>
+</div>
+
+<div class="box">
+<h3>Causality</h3>
+<label><input type="checkbox" id="dechallenge"> Improved after stopping drug</label><br>
+<label><input type="checkbox" id="rechallenge"> Reaction on reintroducing drug</label><br>
+<label><input type="checkbox" id="timing"> Event after drug given</label><br>
+</div>
 
 <button onclick="calculate()">Assess ADR</button>
 
@@ -24,21 +51,63 @@
 <p id="result"></p>
 
 <script>
+
+// psychotropic drugs list
+let drugsList = ["Escitalopram","Sertraline","Olanzapine","Risperidone","Lithium","Valproate","Clonazepam"];
+
+function addDrug() {
+  let div = document.createElement("div");
+
+  div.innerHTML = `
+    <input list="drugList" placeholder="Drug name">
+    <input placeholder="Dose mg">
+    <select>
+      <option>OD</option>
+      <option>BD</option>
+      <option>TDS</option>
+    </select>
+    <hr>
+  `;
+
+  document.getElementById("drugs").appendChild(div);
+}
+
+// autosuggest
+let dataList = document.createElement("datalist");
+dataList.id = "drugList";
+
+drugsList.forEach(d => {
+  let opt = document.createElement("option");
+  opt.value = d;
+  dataList.appendChild(opt);
+});
+
+document.body.appendChild(dataList);
+
+
+// causality logic
 function calculate() {
-  let reaction = document.getElementById("reaction").value;
 
-  if(reaction === "") {
-    document.getElementById("result").innerText = "Enter ADR details";
-    return;
-  }
+  let score = 0;
 
-  // Simple logic
+  if(document.getElementById("timing").checked) score += 2;
+  if(document.getElementById("dechallenge").checked) score += 1;
+  if(document.getElementById("rechallenge").checked) score += 2;
+
+  let naranjo = "";
+  if(score >= 9) naranjo = "Definite";
+  else if(score >=5) naranjo = "Probable";
+  else if(score >=1) naranjo = "Possible";
+  else naranjo = "Doubtful";
+
   let who = "Possible";
-  let naranjo = 3;
+  if(document.getElementById("timing").checked && document.getElementById("dechallenge").checked)
+    who = "Probable";
 
   document.getElementById("result").innerText =
-    "WHO: " + who + " | Naranjo Score: " + naranjo;
+    "WHO: " + who + " | Naranjo: " + naranjo + " (Score: "+score+")";
 }
+
 </script>
 
 </body>
