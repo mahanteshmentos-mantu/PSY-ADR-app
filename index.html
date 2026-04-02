@@ -2,17 +2,21 @@
 <html>
 <head>
   <title>ADR App</title>
+
+  <!-- PDF Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
     body { font-family: Arial; padding:20px; }
-    input, textarea, select { margin:5px 0; padding:8px; width:100%; }
+    input, textarea, select { width:100%; padding:8px; margin:5px 0; }
     .box { border:1px solid #ccc; padding:15px; margin-bottom:15px; }
-    button { padding:10px; margin-top:10px; }
+    button { padding:10px; margin:5px; }
   </style>
 </head>
 
 <body>
 
-<h2>CDSCO ADR Web App</h2>
+<h2>CDSCO ADR Web App (Advanced)</h2>
 
 <div class="box">
 <h3>Patient Info</h3>
@@ -40,72 +44,121 @@
 
 <div class="box">
 <h3>Causality</h3>
-<label><input type="checkbox" id="dechallenge"> Improved after stopping drug</label><br>
-<label><input type="checkbox" id="rechallenge"> Reaction on reintroducing drug</label><br>
-<label><input type="checkbox" id="timing"> Event after drug given</label><br>
+<label><input type="checkbox" id="timing"> Event after drug</label><br>
+<label><input type="checkbox" id="dechallenge"> Improved after stop</label><br>
+<label><input type="checkbox" id="rechallenge"> Reappeared</label><br>
+
+<br>
+<label>Mode:</label>
+<select id="mode">
+<option value="auto">Auto</option>
+<option value="manual">Manual</option>
+</select>
+
+<input id="manualWHO" placeholder="Manual WHO (optional)">
+<input id="manualNaranjo" placeholder="Manual Naranjo (optional)">
 </div>
 
 <button onclick="calculate()">Assess ADR</button>
+<button onclick="saveData()">Save Case</button>
+<button onclick="generatePDF()">Download PDF</button>
 
 <h3>Result:</h3>
 <p id="result"></p>
 
+<h3>Saved Cases:</h3>
+<ul id="cases"></ul>
+
 <script>
 
-// psychotropic drugs list
 let drugsList = ["Escitalopram","Sertraline","Olanzapine","Risperidone","Lithium","Valproate","Clonazepam"];
 
 function addDrug() {
   let div = document.createElement("div");
-
   div.innerHTML = `
     <input list="drugList" placeholder="Drug name">
     <input placeholder="Dose mg">
-    <select>
-      <option>OD</option>
-      <option>BD</option>
-      <option>TDS</option>
-    </select>
     <hr>
   `;
-
   document.getElementById("drugs").appendChild(div);
 }
 
-// autosuggest
+// datalist
 let dataList = document.createElement("datalist");
 dataList.id = "drugList";
 
-drugsList.forEach(d => {
-  let opt = document.createElement("option");
-  opt.value = d;
+drugsList.forEach(d=>{
+  let opt=document.createElement("option");
+  opt.value=d;
   dataList.appendChild(opt);
 });
-
 document.body.appendChild(dataList);
 
+// causality
+function calculate(){
+  let score=0;
 
-// causality logic
-function calculate() {
+  if(timing.checked) score+=2;
+  if(dechallenge.checked) score+=1;
+  if(rechallenge.checked) score+=2;
 
-  let score = 0;
+  let naranjo="Doubtful";
+  if(score>=9) naranjo="Definite";
+  else if(score>=5) naranjo="Probable";
+  else if(score>=1) naranjo="Possible";
 
-  if(document.getElementById("timing").checked) score += 2;
-  if(document.getElementById("dechallenge").checked) score += 1;
-  if(document.getElementById("rechallenge").checked) score += 2;
+  let who="Possible";
+  if(timing.checked && dechallenge.checked) who="Probable";
 
-  let naranjo = "";
-  if(score >= 9) naranjo = "Definite";
-  else if(score >=5) naranjo = "Probable";
-  else if(score >=1) naranjo = "Possible";
-  else naranjo = "Doubtful";
+  if(mode.value==="manual"){
+    who = manualWHO.value || who;
+    naranjo = manualNaranjo.value || naranjo;
+  }
 
-  let who = "Possible";
-  if(document.getElementById("timing").checked && document.getElementById("dechallenge").checked)
-    who = "Probable";
+  result.innerText = "WHO: "+who+" | Naranjo: "+naranjo+" ("+score+")";
+}
 
-  document.getElementById("result").innerText =
-    "WHO: " + who + " | Naranjo: " + naranjo + " (Score: "+score+")";
+// save
+function saveData(){
+  let data={
+    name:name.value,
+    age:age.value,
+    reaction:reaction.value
+  };
+
+  let arr=JSON.parse(localStorage.getItem("adr")||"[]");
+  arr.push(data);
+  localStorage.setItem("adr",JSON.stringify(arr));
+
+  loadCases();
+}
+
+// load
+function loadCases(){
+  let arr=JSON.parse(localStorage.getItem("adr")||"[]");
+  let list=document.getElementById("cases");
+  list.innerHTML="";
+
+  arr.forEach((c,i)=>{
+    let li=document.createElement("li");
+    li.innerText = c.name+" - "+c.reaction;
+    list.appendChild(li);
+  });
+}
+loadCases();
+
+// PDF
+function generatePDF(){
+  const { jsPDF } = window.jspdf;
+  let doc = new jsPDF();
+
+  doc.text("ADR Report",10,10);
+  doc.text("Patient: "+name.value,10,20);
+  doc.text("Age: "+age.value,10,30);
+  doc.text("Reaction: "+reaction.value,10,40);
+  doc.text(result.innerText,10,50);
+
+  doc.save("ADR_Report.pdf");
 }
 
 </script>
